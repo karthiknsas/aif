@@ -1,0 +1,56 @@
+Refer below sample on how to load the LLM:
+=======================================================================================
+        manager = FoundryLocalManager("qwen2.5-coder-7b-instruct-generic-cpu:4")
+        llm = ChatOpenAI(base_url=manager.endpoint,api_key=manager.api_key,temperature=0.2,max_tokens=4096)
+        agent = create_agent(model=llm, tools=[search])
+
+        result = agent.invoke({
+            "messages": [{"role": "user", "content": "Search for products"}]
+        })
+
+        print(result["messages"][-1].content)
+
+        Tools...
+
+
+
+Routing will not happne baed on key word but instead it will redirect to LLM, llm resonse lets whioch routr to globalThis
+
+============================================================================================================
+Example :1
+-----------------------------
+from langchain_openai import ChatOpenAI
+from foundry_local import FoundryLocalManager
+import json
+import re
+
+manager = FoundryLocalManager("phi-3.5-mini")
+llm = ChatOpenAI(base_url=manager.endpoint, api_key=manager.api_key)
+
+# Router LLM decides
+def llm_router(query: str):
+    response = llm.invoke(f"""Decide mode only:
+    Query: {query}
+    Return: {{"mode": "agent" or "chat"}}
+    """)
+
+    match = re.search(r'"mode":\s*"(\w+)"', response.content)
+    return match.group(1) if match else "chat"
+
+# Test
+query1 = "Search for Python books"
+mode1 = llm_router(query1)
+print(f"Query: {query1}")
+print(f"LLM Decision: {mode1}")  # Output: agent ✅
+
+
+Example :2
+
+# Same setup as above
+
+# Test
+query2 = "Tell me a joke"
+mode2 = llm_router(query2)
+print(f"Query: {query2}")
+print(f"LLM Decision: {mode2}")  # Output: chat ✅
+
