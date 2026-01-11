@@ -1179,7 +1179,7 @@ STRICT RULES FOR CODE GEN:
             { role: "user", content: req }
           ];
 
-          const res = await callAI(messages);
+          const res = await callAI(messages, { temperature: 0.3 });
           let reply = res.choices[0].message.content.trim();
           addLog("ai-response", reply);
 
