@@ -746,11 +746,18 @@
       // We create a Blob for the worker to keep everything in a single file
       // The worker code imports WebWorkerMLCEngineHandler and sets up the message listener.
       const workerScript = `
+        console.log("Worker: Script starting...");
         import { WebWorkerMLCEngineHandler } from "https://esm.run/@mlc-ai/web-llm";
-        const handler = new WebWorkerMLCEngineHandler();
-        self.onmessage = (msg) => {
-          handler.onmessage(msg);
-        };
+
+        try {
+            const handler = new WebWorkerMLCEngineHandler();
+            console.log("Worker: Handler initialized");
+            self.onmessage = (msg) => {
+                handler.onmessage(msg);
+            };
+        } catch (e) {
+            console.error("Worker Init Error:", e);
+        }
       `;
       const blob = new Blob([workerScript], { type: 'application/javascript' });
       const workerUrl = URL.createObjectURL(blob);
@@ -983,8 +990,14 @@
         try {
           if (APP.prov === "webllm") {
              // Create WebWorkerMLCEngine using our blob worker
+             const worker = new Worker(workerUrl, { type: "module" });
+             worker.onerror = (e) => {
+                console.error("Worker Error Event:", e);
+                addLog("Worker Startup Error. Check Console.", "error");
+             };
+
              APP.engine = await webllm.CreateWebWorkerMLCEngine(
-               new Worker(workerUrl, { type: "module" }),
+               worker,
                document.getElementById("webllm_model").value,
                {
                  initProgressCallback: (p) => {
