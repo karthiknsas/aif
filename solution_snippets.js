@@ -1,5 +1,5 @@
 
-// --- SYSTEM PROMPT BUILDER (Strict Version) ---
+// --- SYSTEM PROMPT BUILDER (Data-Aware Version) ---
 function buildSystemPrompt(req) {
     const dC = APP.data.length ? `COLS: ${JSON.stringify(APP.cols)}` : "";
     return `
@@ -22,18 +22,28 @@ STRICT RULES:
 - TEXT: Update document.getElementById('AI_SUMMARY').innerHTML.
 - THEME: Update document.getElementById('GEN_CSS').innerHTML.
 
-3. BEHAVIOR:
-- If user says "hi" or general chat: Target AI_SUMMARY only.
-- DO NOT generate charts unless explicitly asked.
+3. DATA RULES:
+- DO NOT hallucinate values.
+- DO NOT use hardcoded numbers (like [10, 20]).
+- YOU MUST write JS code to transform 'APP.data'.
+- Example: data: APP.data.map(r => r.Sales)
 
 EXAMPLE:
 <<<TARGET>>>
 canvas_1
 <<<DESCRIPTION>>>
-Sales Bar Chart
+Sales by Region
 <<<JAVASCRIPT>>>
 APP.charts.c1?.destroy();
-var opt = { series: [{ data: [10, 20] }], chart: { type: 'bar' } };
+// Process Data
+const seriesData = APP.data.map(r => r.Sales);
+const catData = APP.data.map(r => r.Region);
+
+var opt = {
+  series: [{ data: seriesData }],
+  xaxis: { categories: catData },
+  chart: { type: 'bar' }
+};
 APP.charts.c1 = new ApexCharts(document.querySelector("#canvas_1"), opt);
 APP.charts.c1.render();
 <<<END>>>
@@ -49,23 +59,21 @@ async function GEN_EXECUTE() {
     addMsg("user", req);
     document.getElementById("user_input").value = "";
 
-    // IMPORTANT: We do NOT send chat history.
-    // We strictly send the System Prompt + Current Request to keep the context clean.
     const prompt = buildSystemPrompt(req);
 
     try {
         setChatState("disabled");
         addMsg("system", "Thinking...");
 
-        // Call AI with a single message (User role containing the full system instruction)
         const res = await callAI([{ role: "user", content: prompt }]);
         const reply = res.choices[0].message.content.trim();
 
         addLog("ai-code", reply);
 
-        // --- CUSTOM PARSER (Looping Regex) ---
-        // Captures ALL targets in the response
+        // --- CUSTOM PARSER (Robust Regex) ---
+        // 1. Matches <<<TARGET>>> blocks even if wrapped in markdown like ```text ... ```
         const regex = /<<<TARGET>>>\s*(\S+)\s*<<<DESCRIPTION>>>\s*([\s\S]*?)\s*<<<JAVASCRIPT>>>\s*([\s\S]*?)\s*<<<END>>>/gi;
+
         let match;
         let foundAny = false;
 
@@ -77,7 +85,6 @@ async function GEN_EXECUTE() {
 
             addMsg("ai", `<strong>${targetId}:</strong> ${description}`);
 
-            // --- EXECUTION ---
             try {
                 const fn = new Function("APP", "document", "ApexCharts", code);
                 fn(APP, document, ApexCharts);
@@ -88,8 +95,8 @@ async function GEN_EXECUTE() {
         }
 
         if (!foundAny) {
-            // Fallback if regex fails but there is text (maybe simple chat?)
-             addLog("⚠️ No code block found. AI said: " + reply, "warn");
+            // Fallback: Check if response has code but missing delimiters (sometimes happens)
+             addLog("⚠️ No valid block found. Response: " + reply.substring(0, 100) + "...", "warn");
              addMsg("ai", reply);
         }
 
