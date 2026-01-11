@@ -1,5 +1,5 @@
 
-// --- SYSTEM PROMPT BUILDER (Data-Aware Version) ---
+// --- SYSTEM PROMPT BUILDER (Strict Version) ---
 function buildSystemPrompt(req) {
     const dC = APP.data.length ? `COLS: ${JSON.stringify(APP.cols)}` : "";
     return `
@@ -22,17 +22,16 @@ STRICT RULES:
 - TEXT: Update document.getElementById('AI_SUMMARY').innerHTML.
 - THEME: Update document.getElementById('GEN_CSS').innerHTML.
 
-3. DATA RULES:
-- DO NOT hallucinate values.
-- DO NOT use hardcoded numbers (like [10, 20]).
-- YOU MUST write JS code to transform 'APP.data'.
-- Example: data: APP.data.map(r => r.Sales)
+3. DATA & SYNTAX:
+- DO NOT hallucinate values. Use 'APP.data.map(...)'.
+- For Categorical Charts (Pie/Donut), you MUST aggregate data counts yourself.
+- Use lowercase for: 'document', 'APP.data', 'APP.charts', 'new ApexCharts'.
 
 EXAMPLE:
 <<<TARGET>>>
 canvas_1
 <<<DESCRIPTION>>>
-Sales by Region
+Sales Bar Chart
 <<<JAVASCRIPT>>>
 APP.charts.c1?.destroy();
 // Process Data
@@ -70,10 +69,8 @@ async function GEN_EXECUTE() {
 
         addLog("ai-code", reply);
 
-        // --- CUSTOM PARSER (Robust Regex) ---
-        // 1. Matches <<<TARGET>>> blocks even if wrapped in markdown like ```text ... ```
+        // --- CUSTOM PARSER (Looping Regex) ---
         const regex = /<<<TARGET>>>\s*(\S+)\s*<<<DESCRIPTION>>>\s*([\s\S]*?)\s*<<<JAVASCRIPT>>>\s*([\s\S]*?)\s*<<<END>>>/gi;
-
         let match;
         let foundAny = false;
 
@@ -81,7 +78,16 @@ async function GEN_EXECUTE() {
             foundAny = true;
             const targetId = match[1].trim();
             const description = match[2].trim();
-            const code = match[3].trim();
+            let code = match[3].trim();
+
+            // --- AUTO-CORRECT CAPS LOCK ---
+            // Fix common CAPS issues if the model shouts
+            code = code
+                .replace(/DOCUMENT\.QUERYSELECTOR/gi, "document.querySelector")
+                .replace(/DOCUMENT\.GETELEMENTBYID/gi, "document.getElementById")
+                .replace(/APP\.DATA/gi, "APP.data")
+                .replace(/APP\.CHARTS/gi, "APP.charts")
+                .replace(/NEW APEXCHARTS/gi, "new ApexCharts");
 
             addMsg("ai", `<strong>${targetId}:</strong> ${description}`);
 
@@ -95,7 +101,6 @@ async function GEN_EXECUTE() {
         }
 
         if (!foundAny) {
-            // Fallback: Check if response has code but missing delimiters (sometimes happens)
              addLog("⚠️ No valid block found. Response: " + reply.substring(0, 100) + "...", "warn");
              addMsg("ai", reply);
         }
