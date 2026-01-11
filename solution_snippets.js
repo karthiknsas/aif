@@ -1,5 +1,5 @@
 
-// --- SYSTEM PROMPT BUILDER (Strict Version) ---
+// --- SYSTEM PROMPT BUILDER (Multi-Example Version) ---
 function buildSystemPrompt(req) {
     const dC = APP.data.length ? `COLS: ${JSON.stringify(APP.cols)}` : "";
     return `
@@ -17,17 +17,25 @@ STRICT RULES:
 {code}
 <<<END>>>
 
-2. LOGIC:
-- CHARTS: Use ApexCharts. Destroy old: APP.charts.c1?.destroy(). New: APP.charts.c1 = new ApexCharts(document.querySelector("#canvas_1"), options); APP.charts.c1.render().
-- TEXT: Update document.getElementById('AI_SUMMARY').innerHTML.
-- THEME: Update document.getElementById('GEN_CSS').innerHTML.
+2. TARGETS (CHOOSE ONE):
+- 'AI_SUMMARY' (For text, answers, explanations)
+- 'canvas_1' (For main chart)
+- 'GEN_CSS' (For theme changes)
 
-3. DATA & SYNTAX:
-- DO NOT hallucinate values. Use 'APP.data.map(...)'.
-- For Categorical Charts (Pie/Donut), you MUST aggregate data counts yourself.
-- Use lowercase for: 'document', 'APP.data', 'APP.charts', 'new ApexCharts'.
+3. BEHAVIOR:
+- General Question/Greeting -> Use 'AI_SUMMARY'. NO CHARTS.
+- Visualization Request -> Use 'canvas_1'.
 
-EXAMPLE:
+EXAMPLE 1 (General Chat):
+<<<TARGET>>>
+AI_SUMMARY
+<<<DESCRIPTION>>>
+Answering user question
+<<<JAVASCRIPT>>>
+document.getElementById('AI_SUMMARY').innerHTML = "<b>Answer:</b> The capital of India is New Delhi.";
+<<<END>>>
+
+EXAMPLE 2 (Chart Request):
 <<<TARGET>>>
 canvas_1
 <<<DESCRIPTION>>>
@@ -81,7 +89,6 @@ async function GEN_EXECUTE() {
             let code = match[3].trim();
 
             // --- AUTO-CORRECT CAPS LOCK ---
-            // Fix common CAPS issues if the model shouts
             code = code
                 .replace(/DOCUMENT\.QUERYSELECTOR/gi, "document.querySelector")
                 .replace(/DOCUMENT\.GETELEMENTBYID/gi, "document.getElementById")
