@@ -1136,7 +1136,9 @@ ${dC}
 
 STRICT RULES FOR CODE GEN:
 - NO MARKDOWN (\`\`\`). Do not use code blocks.
-- CASE SENSITIVE: Use 'APP.data', 'document', 'ApexCharts'. NEVER 'APP.DATA' or 'DOCUMENT'.
+- DO NOT SHOUT. JavaScript is Case Sensitive.
+- KEYWORDS: Use 'const', 'var', 'new', 'function'. NEVER 'CONST', 'VAR'.
+- OBJECTS: Use 'APP.data', 'APP.charts', 'document', 'ApexCharts'.
 - DATA QUERY: For answers like "Distinct Regions" or "Avg Sales", target 'AI_SUMMARY' and update innerHTML.
 - CHARTS: APP.charts.c1?.destroy(); APP.charts.c1 = new ApexCharts(document.querySelector("#canvas_1"), options); APP.charts.c1.render();
 `;
@@ -1148,10 +1150,18 @@ STRICT RULES FOR CODE GEN:
           let clean = code
             .replace(/APP\.DATA/g, "APP.data")
             .replace(/APP\.COLS/g, "APP.cols")
+            .replace(/APP\.CHARTS/g, "APP.charts")
             .replace(/DOCUMENT\./g, "document.")
             .replace(/APEXCHARTS/g, "ApexCharts")
             .replace(/WINDOW\./g, "window.")
-            .replace(/CONSOLE\.LOG/g, "console.log");
+            .replace(/CONSOLE\.LOG/g, "console.log")
+            // Keywords
+            .replace(/CONST /g, "const ")
+            .replace(/VAR /g, "var ")
+            .replace(/LET /g, "let ")
+            .replace(/NEW /g, "new ")
+            .replace(/FUNCTION/g, "function")
+            .replace(/RETURN /g, "return ");
 
           // Remove Markdown backticks if present
           clean = clean.replace(/```javascript/gi, "").replace(/```/g, "");
