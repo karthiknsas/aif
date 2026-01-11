@@ -1138,8 +1138,10 @@ STRICT RULES FOR CODE GEN:
 - NO MARKDOWN (\`\`\`). Do not use code blocks.
 - DO NOT SHOUT. JavaScript is Case Sensitive.
 - KEYWORDS: Use 'const', 'var', 'new', 'function'. NEVER 'CONST', 'VAR'.
-- OBJECTS: Use 'APP.data', 'APP.charts', 'document', 'ApexCharts'.
-- DATA QUERY: For answers like "Distinct Regions" or "Avg Sales", target 'AI_SUMMARY' and update innerHTML.
+- TARGETS:
+  * CHARTS -> canvas_1
+  * TEXT/STATS -> AI_SUMMARY
+  * THEME -> GEN_CSS
 - CHARTS: APP.charts.c1?.destroy(); APP.charts.c1 = new ApexCharts(document.querySelector("#canvas_1"), options); APP.charts.c1.render();
 `;
       }
@@ -1155,6 +1157,15 @@ STRICT RULES FOR CODE GEN:
             .replace(/APEXCHARTS/g, "ApexCharts")
             .replace(/WINDOW\./g, "window.")
             .replace(/CONSOLE\.LOG/g, "console.log")
+            // Methods
+            .replace(/\.QUERYSELECTOR/g, ".querySelector")
+            .replace(/\.GETELEMENTBYID/g, ".getElementById")
+            .replace(/\.INNERHTML/g, ".innerHTML")
+            .replace(/\.MAP\(/g, ".map(")
+            .replace(/\.FILTER\(/g, ".filter(")
+            .replace(/\.REDUCE\(/g, ".reduce(")
+            .replace(/\.DESTROY\(/g, ".destroy(")
+            .replace(/\.RENDER\(/g, ".render(")
             // Keywords
             .replace(/CONST /g, "const ")
             .replace(/VAR /g, "var ")
