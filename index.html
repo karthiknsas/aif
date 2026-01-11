@@ -1120,8 +1120,8 @@
 
         return `
 SYSTEM: You are a dual-mode assistant.
-1. GENERAL KNOWLEDGE: If the user asks a general question (e.g., "Capital of India", "How many continents"), answer DIRECTLY in plain text.
-2. DATA/UI TASKS: If the user asks for charts, themes, or data analysis (e.g., "Avg sales", "Bar chart"), generate JavaScript code using this format:
+1. GENERAL KNOWLEDGE: If the user asks a general question (e.g., "Capital of India"), answer DIRECTLY in plain text.
+2. DATA/UI TASKS: If the user asks for charts, themes, or data analysis (e.g., "Avg sales"), generate JavaScript code using this format:
 
 <<<TARGET>>>
 {target_id}
@@ -1135,12 +1135,27 @@ CONTEXT:
 ${dC}
 
 STRICT RULES FOR CODE GEN:
-- CHARTS: Use ApexCharts. Destroy old: APP.charts.c1?.destroy(). New: APP.charts.c1 = new ApexCharts(document.querySelector("#canvas_1"), options); APP.charts.c1.render().
-- TEXT: Update document.getElementById('AI_SUMMARY').innerHTML.
-- THEME: Update document.getElementById('GEN_CSS').innerHTML.
-- DATA: Use 'APP.data.map(...)'. DO NOT hallucinate row data.
-- NO MARKDOWN in code blocks.
+- NO MARKDOWN (```). Do not use code blocks.
+- CASE SENSITIVE: Use 'APP.data', 'document', 'ApexCharts'. NEVER 'APP.DATA' or 'DOCUMENT'.
+- DATA QUERY: For answers like "Distinct Regions" or "Avg Sales", target 'AI_SUMMARY' and update innerHTML.
+- CHARTS: APP.charts.c1?.destroy(); APP.charts.c1 = new ApexCharts(document.querySelector("#canvas_1"), options); APP.charts.c1.render();
 `;
+      }
+
+      // --- CODE SANITIZER ---
+      function sanitizeCode(code) {
+          // Fix common ALL CAPS hallucinations
+          let clean = code
+            .replace(/APP\.DATA/g, "APP.data")
+            .replace(/APP\.COLS/g, "APP.cols")
+            .replace(/DOCUMENT\./g, "document.")
+            .replace(/APEXCHARTS/g, "ApexCharts")
+            .replace(/WINDOW\./g, "window.")
+            .replace(/CONSOLE\.LOG/g, "console.log");
+
+          // Remove Markdown backticks if present
+          clean = clean.replace(/```javascript/gi, "").replace(/```/g, "");
+          return clean;
       }
 
       // --- EXECUTION FUNCTION ---
@@ -1158,17 +1173,22 @@ STRICT RULES FOR CODE GEN:
           setChatState("disabled");
           addMsg("system", "Thinking...");
 
-          // STATELESS REQUEST: We do NOT send previous history here to avoid "Code Generator" persona leak.
-          // We always send the System Prompt + Current User Request.
+          // STATELESS REQUEST
           const messages = [
             { role: "system", content: prompt },
             { role: "user", content: req }
           ];
 
           const res = await callAI(messages);
-          const reply = res.choices[0].message.content.trim();
-
+          let reply = res.choices[0].message.content.trim();
           addLog("ai-response", reply);
+
+          // --- FALLBACK: If no format found but code detected, wrap it ---
+          // Detects: "APP.DATA", "APP.data", "```javascript"
+          if (!reply.includes("<<<TARGET>>>") && (reply.match(/APP\.(data|DATA)/i) || reply.includes("```"))) {
+             addLog("⚠️ Malformed response detected. Attempting auto-repair...", "warn");
+             reply = `<<<TARGET>>>\nAI_SUMMARY\n<<<DESCRIPTION>>>\nAuto-repaired code\n<<<JAVASCRIPT>>>\n${reply}\n<<<END>>>`;
+          }
 
           // --- DUAL MODE PARSER ---
           const regex = /<<<TARGET>>>\s*(\S+)\s*<<<DESCRIPTION>>>\s*([\s\S]*?)\s*<<<JAVASCRIPT>>>\s*([\s\S]*?)\s*<<<END>>>/gi;
@@ -1179,9 +1199,12 @@ STRICT RULES FOR CODE GEN:
             foundAny = true;
             const targetId = match[1].trim();
             const description = match[2].trim();
-            const code = match[3].trim();
+            let code = match[3].trim();
 
             addMsg("ai", `<strong>${targetId}:</strong> ${description}`);
+
+            // Sanitize code before execution
+            code = sanitizeCode(code);
 
             try {
               // Execute code
