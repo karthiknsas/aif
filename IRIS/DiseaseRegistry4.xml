@@ -1,0 +1,877 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="IRIS" version="26" zv="IRIS for UNIX (Red Hat Enterprise Linux 8 for x86-64) 2022.1.2 (Build 574_0_23769U)" ts="2026-01-16 08:12:56">
+<Class name="PCS.UI.Cohorts.DiseaseRegistry4">
+<IncludeCode>UtilityHelper</IncludeCode>
+<Super>%CSP.Page</Super>
+<TimeChanged>67586,1807.526122639</TimeChanged>
+<TimeCreated>67542,56319.982929968</TimeCreated>
+
+<Parameter name="PAGENAME">
+<Default>Riayati Disease Registry Portal</Default>
+</Parameter>
+
+<Parameter name="CHARSET">
+<Default>UTF-8</Default>
+</Parameter>
+
+<Method name="OnPage">
+<ClassMethod>1</ClassMethod>
+<ReturnType>%Status</ReturnType>
+<Implementation><![CDATA[
+    Set tStatus = $System.Status.OK()
+    Write ..HyperEventHead(),!
+    Try {
+	    Set tDiseaseRegUtil = ##class(PCS.UI.Cohorts.Util.DiseaseRegistry4).%New()
+        Do tDiseaseRegUtil.DrawHead()
+        &html<<body>>
+            Do tDiseaseRegUtil.DrawHeader()
+            &html<<div class="layout">>
+                Do tDiseaseRegUtil.DrawSidebar()
+                Do tDiseaseRegUtil.DrawContentShell()
+                Do ..DrawConnectingFunc()
+            &html<</div>>
+            	
+				Merge tMetrics=^PCS.DR.PreComputedMetrics
+             	Do ..InjectDashboard(.tMetrics,"",0)
+        &html<</body></html>>
+    } Catch (Ex) {
+        Set tStatus = Ex.AsStatus()
+        $$$SysLog(3, "Disease Registry", "[OnPage]", "Error: " _ Ex.AsStatus())
+        Return 0
+    }
+    Quit 1
+]]></Implementation>
+</Method>
+
+<Method name="InjectDashboard">
+<Description>
+Injected exactly as requested</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&pMetrics:%String="",&pTrendData:%String="",pHasFilters:%Boolean=0]]></FormalSpec>
+<Implementation><![CDATA[
+    Write "<script type=""text/javascript"">",!
+  	Write "document.addEventListener('DOMContentLoaded', function() {",!
+    Write "    if (typeof DashboardFramework === 'undefined') {",!
+    Write "        console.error('DashboardFramework not loaded');",!
+    Write "        return;",!
+    Write "    }",!
+    Write "    try {",!
+    
+
+		Write "        DashboardFramework.clear();",!
+        Write "        DashboardFramework.init();",!
+
+
+        
+
+
+    Set tGenderRatio = $G(pMetrics("GenderRatio"), "N/A")
+    Set tTopProgram = $G(pMetrics("topProgram"), "N/A")
+    
+    Write "        DashboardFramework.addMetric({title:'Total Patients',value:",($G(pMetrics("TotalPatients"), 0)),",icon:'👥'});",!
+    Write "        DashboardFramework.addMetric({title:'Active Programs',value:",($G(pMetrics("ActivePrograms"), 0)),",icon:'📋'});",!
+    Write "        DashboardFramework.addMetric({title:'Average Age',value:",($G(pMetrics("AvgAge"), 0)),",icon:'🎂'});",!
+    Write "        DashboardFramework.addMetric({title:'Gender Ratio (M:F)',value:'",$ZCVT(tGenderRatio,"O","JS"),"',icon:'⚖️'});",!
+    
+
+    If pHasFilters =3 {
+        Kill tChartData
+        Do ##class(PCS.Riayati.HSCUSTOM.Util.ChartsDataConverter).ConvertEnrollmentTrendToChart(.pTrendData, 90, .tChartData)
+        Set tLabels = $G(tChartData("labels"), "")
+        Set tValues = $G(tChartData("values"), "")
+        If tLabels '= "" {
+           
+            Set tBarChartName = "Enrollment Trend - Last 90 Days (Bar)"
+            Write "        DashboardFramework.addChart({name:'",$ZCVT(tBarChartName,"O","JS"),"',type:'bar',labels:[",tLabels,"],values:[",tValues,"]});",!
+            
+           
+            Set tLineChartName = "Enrollment Trend - Last 90 Days (Line)"
+            Write "        DashboardFramework.addChart({name:'",$ZCVT(tLineChartName,"O","JS"),"',type:'line',labels:[",tLabels,"],values:[",tValues,"]});",!
+        }
+    } Else {
+        Write "        console.log('No filters applied - Trend Charts will not not be shown');",!
+    }
+    Write "			UISwap.ready()",!
+    Write "        DashboardFramework.render();",!
+    
+    Write "    } catch (ex) {",!
+    Write "        console.error('Dashboard initialization error:', ex);",!
+    Write "    }",!
+    Write "});",!
+    Write "</script>",!
+]]></Implementation>
+</Method>
+
+<Method name="DrawConnectingFunc">
+<ClassMethod>1</ClassMethod>
+<Implementation><![CDATA[
+	&html<<script type="text/javascript">
+		window.getpatientList = function(lastRowId, recordsPerPage,startIndex,filterJSON) {
+            try {
+                const htmlRows = #server(PCS.UI.Cohorts.Util.DiseaseRegistry4.GetNextBatchHTML(lastRowId, recordsPerPage,startIndex,filterJSON))#;
+                return htmlRows;
+            } catch (ex) {
+                console.error('Error fetching patient batch:', ex);
+                return '';
+            }
+        };
+       
+        window.updateDashboardTab = function(filterJSON1) {
+            try {
+                const jsonData = #server(PCS.UI.Cohorts.Util.DiseaseRegistry4.UpdateDashboardTab(filterJSON1))#;
+                if (!jsonData) return false;
+                
+                const data = JSON.parse(jsonData);
+                
+                DashboardFramework.clear();
+                DashboardFramework.addMetric({title:'Total Patients', value:data.TotalPatients, icon:'👥'});
+                DashboardFramework.addMetric({title:'Active Programs', value:data.ActivePrograms, icon:'📋'});
+                DashboardFramework.addMetric({title:'Average Age', value:data.AvgAge, icon:'🎂'});
+                DashboardFramework.addMetric({title:'Gender Ratio (M:F)', value:data.GenderRatio, icon:'⚖️'});
+                DashboardFramework.addMetric({title:'Top Program', value:data.TopProgram, icon:'🏆'});
+                
+                if (data.chartLabels) {
+				    const labels = JSON.parse('[' + data.chartLabels.replace(/'/g, '"') + ']');
+				    const values = JSON.parse('[' + data.chartValues + ']');
+				                                    
+				    DashboardFramework.addChart({name:'Enrollment Trend (Bar)', type:'bar', labels:labels, values:values});
+				    DashboardFramework.addChart({name:'Enrollment Trend (Line)', type:'line', labels:labels, values:values});
+				}
+                UISwap.ready();
+                DashboardFramework.render();
+                return true;
+            } catch (ex) {
+                console.error('Dashboard update error:', ex);
+                return false;
+            }
+        };
+    </script>>
+]]></Implementation>
+</Method>
+
+<Method name="DrawTable">
+<Description>
+JS Controller maps new HTML events to Logic</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>pResultSet:%SQL.StatementResult</FormalSpec>
+<Implementation><![CDATA[
+    &html<
+    <div class="table-container">
+    <table class="data-grid">
+        <thead>
+            <tr>
+                <th style="width: 20%;">Patient Name</th>
+                <th style="width: 10%;">DOB</th>
+                <th style="width: 5%;">Gender</th>
+                <th style="width: 15%;">MPIID</th>
+                <th style="width: 25%;">MRN [AA] List</th>
+                <th style="width: 15%;">From Time</th>
+                <th style="width: 10%; text-align: center;">Actions</th>
+            </tr>
+        </thead>
+        <tbody>>
+        
+    While (pResultSet.%Next()) {
+        Set tRowMpi = pResultSet.%Get("MPIID")
+        Set tHSAAID = pResultSet.%Get("HSAAID")
+        Set tMrnDisplay = ..FormatMRNList(pResultSet.%Get("MRNAAList"), tRowMpi)
+
+        &html<
+            <tr>
+                <td><strong>#($ZCVT(pResultSet.%Get("PatientName"),"O","HTML"))#</strong></td>
+                <td>#($ZDT($ZCVT(pResultSet.%Get("DOB"),"O","HTML"),5))#</td>
+                <td>#($ZCVT(pResultSet.%Get("Gender"),"O","HTML"))#</td>
+                <td>#($ZCVT(tRowMpi,"O","HTML"))#</td>
+                <td><div class="mrn-list">#(tMrnDisplay)#</div></td>
+                <td><span class="text-muted">#($ZCVT(pResultSet.%Get("FromTime"),"O","HTML"))#</span></td>
+                <td align="center">
+                    <button type="button" class="btn-view" onclick="openViewer('#(tHSAAID)#')">View</button>
+                </td>
+            </tr>>
+    }
+    &html<</tbody></table></div>>
+]]></Implementation>
+</Method>
+
+<Method name="FormatMRNList">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>pList:%String,pUniqueId:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+    Set tLimit = 3
+    Set tCount = 0
+    Set tVisibleHTML = ""
+    Set tHiddenHTML = ""
+    
+    For i=1:1:$Length(pList, ",") {
+        Set tItem = $Piece(pList, ",", i)
+        Continue:tItem=""
+        
+        Set tCount = tCount + 1
+        Set tMrn = $Piece(tItem, "^", 1)
+        Set tAa  = $Piece(tItem, "^", 2)
+        Set tBadge = "<div class='mrn-badge'><span class='mrn-val'>"_tMrn_"</span> <span class='aa-val'>["_tAa_"]</span></div>"
+        
+        If (tCount <= tLimit) {
+            Set tVisibleHTML = tVisibleHTML _ tBadge
+        } Else {
+            Set tHiddenHTML = tHiddenHTML _ tBadge
+        }
+    }
+    
+    Set tResult = tVisibleHTML
+    If (tHiddenHTML '= "") {
+        Set tDivId = "mrn_hidden_" _ pUniqueId
+        Set tExtra = tCount - tLimit
+        Set tResult = tResult _ "<div id='"_tDivId_"' class='hidden'>" _ tHiddenHTML _ "</div>"
+        Set tResult = tResult _ "<span class='mrn-toggle' onclick=""toggleMrn('"_tDivId_"', this)"">+ "_tExtra_" more</span>"
+    }
+    Quit tResult
+]]></Implementation>
+</Method>
+</Class>
+
+
+<Class name="PCS.UI.Cohorts.Util.DiseaseRegistry4">
+<Super>%RegisteredObject</Super>
+<TimeChanged>67586,27178.572299116</TimeChanged>
+<TimeCreated>67549,78264.255450383</TimeCreated>
+
+<Parameter name="PAGENAME">
+<Default>Riayati Disease Registry Portal</Default>
+</Parameter>
+
+<Method name="DrawHead">
+<Implementation><![CDATA[
+	
+	&html<<head>
+       <meta charset="UTF-8">
+       <meta name="viewport" content="width=device-width,initial-scale=1.0">
+      <title>#(..#PAGENAME)#</title>
+     <link rel="stylesheet" href="/csp/hscustom/Riayati/css/disease-registry.css">
+     <script type="text/javascript" src="jquery-1.11.3.min.js"></script>
+   <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+   <script src="/csp/hscustom/Riayati/js/dashboard-framework.js"></script>
+   <script src="/csp/hscustom/Riayati/js/disease-registry-utils.js"></script>
+   <script src="/csp/hscustom/Riayati/js/table_lazy-load.js"></script>
+   </head>
+	>
+]]></Implementation>
+</Method>
+
+<Method name="DrawHeader">
+<Implementation><![CDATA[
+    Set tUsername = $ZCVT(%session.UsernameGet(),"O","HTML")
+    Set tUserInitials = $Extract(tUsername, 1, 1)
+    
+    &html<
+    <div class="header">
+        <span class="portal-title">#(..#PAGENAME)#</span>
+        <div class="df-nav-container">
+            <button id="tab-dashboard" class="df-nav-tab active" onclick="switchView('dashboard')"><span>📈</span> Dashboard</button>
+            <button id="tab-list" class="df-nav-tab" onclick="switchView('list')"><span>📊</span> Patients</button>
+        </div>
+        <div class="user-dropdown">
+            <button class="user-btn" onclick="toggleUserDropdown()">
+                <span class="user-icon">#(tUserInitials)#</span>
+                <span>#(tUsername)#</span>
+            </button>
+            <div class="dropdown-menu" id="userDropdownMenu">
+                <button class="dropdown-item" onclick="handleLogout()">🚪 Logout</button>
+            </div>
+        </div>
+    </div>>
+]]></Implementation>
+</Method>
+
+<Method name="DrawSidebar">
+<ClassMethod>1</ClassMethod>
+<Implementation><![CDATA[
+    // Initialize variables to prevent UNDEFINED errors during compile/runtime
+   &html<<div class="sidebar">
+    <button class="sidebar-toggle" onclick="toggleSidebar()" title="Toggle Sidebar">
+        <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+            <path d="M4 2L8 6L4 10" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        </svg>
+    </button>
+    
+    <h3>Filters</h3>
+    
+    <form id="filterForm" onsubmit="return false;">
+        <!-- Program Filter -->
+        <div class="filter-group">
+            <label>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#6366f1" stroke-width="2">
+                    <rect x="3" y="3" width="18" height="18" rx="2"/>
+                    <path d="M3 9h18"/>
+                    <path d="M9 21V9"/>
+                </svg>
+                <span>Program</span>
+            </label>
+            <div class="input-wrapper" data-field="ProgramId">
+                <select id="programDropdown" name="ProgramId" class="filter-input">
+                    <option value="">-- Select a Program --</option>> 
+    Set tId = "" 
+    For { 
+    	Set tId = $O(^HSAA.ProgramD(tId)) 
+    	Quit:tId="" 
+    	Set tName = $LG(^HSAA.ProgramD(tId), 5) 
+    	&html<<option value=#(tId)#>#($ZCVT(tName,"O","HTML"))#</option>> 
+    } 
+                &html<</select>
+            </div>
+        </div>
+
+        <!-- MPIID Filter -->
+        <div class="filter-group">
+            <label>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ec4899" stroke-width="2">
+                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+                    <circle cx="12" cy="7" r="4"/>
+                </svg>
+                <span>MPIID</span>
+            </label>
+            <div class="input-wrapper" data-field="MPIID">
+                <input type="text" name="MPIID" class="filter-input" placeholder="Enter MPIID">
+                <button type="button" class="clear-btn" onclick="clearField(this)">✕</button>
+            </div>
+        </div>
+
+        <!-- From Time Filter -->
+        <div class="filter-group">
+            <label>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2">
+                    <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+                    <line x1="16" y1="2" x2="16" y2="6"/>
+                    <line x1="8" y1="2" x2="8" y2="6"/>
+                    <line x1="3" y1="10" x2="21" y2="10"/>
+                </svg>
+                <span>From Time</span>
+            </label>
+            <div class="input-wrapper datetime-wrapper" data-field="FromTime">
+                <input type="datetime-local" name="FromTime" class="filter-input datetime-input">
+                <button type="button" class="datetime-ok-btn" onclick="confirmDateTime(this)" title="Confirm">✓</button>
+                <button type="button" class="clear-btn" onclick="clearField(this)">✕</button>
+            </div>
+        </div>
+
+        <!-- MRN Filter -->
+        <div class="filter-group">
+            <label>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                    <polyline points="14 2 14 8 20 8"/>
+                    <line x1="12" y1="18" x2="12" y2="12"/>
+                    <line x1="9" y1="15" x2="15" y2="15"/>
+                </svg>
+                <span>MRN</span>
+            </label>
+            <div class="input-wrapper" data-field="MRN">
+                <input type="text" name="MRN" class="filter-input" placeholder="Enter MRN">
+                <button type="button" class="clear-btn" onclick="clearField(this)">✕</button>
+            </div>
+        </div>
+
+        <!-- Assigning Authority Filter -->
+        <div class="filter-group">
+            <label>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#06b6d4" stroke-width="2">
+                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                </svg>
+                <span>Assigning Authority</span>
+            </label>
+            <div class="input-wrapper" data-field="AssigningAuthority">
+                <input type="text" name="AssigningAuthority" class="filter-input" placeholder="Enter Authority">
+                <button type="button" class="clear-btn" onclick="clearField(this)">✕</button>
+            </div>
+        </div>
+
+        <!-- Records Per Page Filter -->
+        <div class="filter-group">
+            <label>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8b5cf6" stroke-width="2">
+                    <path d="M3 3h18v18H3z"/>
+                    <path d="M3 9h18"/>
+                    <path d="M3 15h18"/>
+                </svg>
+                <span>Records Per Page</span>
+            </label>
+            <div class="input-wrapper" data-field="RecordsPerPage">
+                <select name="RecordsPerPage" class="filter-input" id="recordsPerPageSelect">
+                    <option value="150">150</option>
+                    <option value="300">300</option>
+                    <option value="500" selected>500</option>
+                    <option value="1000">1000</option>
+                </select>
+            </div>
+        </div>
+
+        <!-- Action Buttons -->
+        <button type="button" class="btn-search" onclick="applyFilters()">Apply Filters</button>
+        <button type="button" class="btn-clear-all" onclick="clearAllFilters()">Clear All</button>
+    </form>
+</div>>
+]]></Implementation>
+</Method>
+
+<Method name="DrawContentShell">
+<ClassMethod>1</ClassMethod>
+<Implementation><![CDATA[
+    &html<<div class="content df-show-dashboard"> <div id="view-dashboard" class="spa-view"> <div id="skel-dashboard" class="dashboard-grid"> <div class="skeleton card-skel"></div> <div class="skeleton card-skel"></div> <div class="skeleton card-skel"></div> <div class="skeleton card-skel"></div> <div class="skeleton chart-skel" style="grid-column: 1 / -1; height: 300px;"></div> </div> <div id="df-dashboard-panel"></div> </div> <div id="view-list" class="spa-view hidden"> <div id="msg-welcome" class="msg-container"> <div class="msg-card"> <div class="msg-icon">🏥</div> <div class="msg-title">Welcome to Disease Registry Portal</div> <div class="msg-text"> Please select a <strong>Program</strong> from the filters and click 
+    <strong>Apply Filters</strong> to view patients. </div> </div> </div> <div id="msg-no-data" class="msg-container hidden"> <div class="msg-card"> <div class="msg-icon">🔍</div> <div class="msg-title">No Records Found</div> <div class="msg-text"> No patients match your search criteria. </div> <div class="msg-hint"> Try adjusting your filters or removing some search criteria. </div> </div> </div> <div id="table-wrapper" class="table-container hidden"> <div id="scrollContainer" style="height:100%; overflow:auto;"> <table class="data-grid"> <thead> <tr> <th width="5%">S.No</th> <th width="18%">Patient Name</th> <th width="10%">DOB</th> <th width="5%">Gender</th> <th width="12%">MPIID</th> <th width="23%">MRN [AA] List</th> <th width="12%">From Time</th> <th width="10%">Actions</th> </tr> </thead> <tbody id="patientTableBody"></tbody> </table> <div id="loadSentinel" class="loading-trigger">Loading more data...</div> </div> </div> </div> </div>>
+]]></Implementation>
+</Method>
+
+<Method name="UpdateDashboardTab">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>pSearchParamsArr:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	Set tResult = {}
+	Set ^yO(1)=pSearchParamsArr
+    Set tFiltersObj = ##class(%DynamicObject).%FromJSON(pSearchParamsArr)
+    Set tFilters("ProgramId") = tFiltersObj.ProgramId
+    Set tFilters("MPIID") = tFiltersObj.MPIID
+    Set tFilters("FromTime") = tFiltersObj.FromTime
+    Set tFilters("MRN") = tFiltersObj.MRN
+    Set tFilters("AssigningAuthority") = tFiltersObj.AssigningAuthority
+    M ^yO(2)=tFilters
+    Kill tMetrics, tTrendData
+    Do ##class(PCS.UI.Cohorts.Util.DiseaseRegistryMetrics).GetDashboardMetrics(.tFilters, .tMetrics)
+    Do ##class(PCS.UI.Cohorts.Util.DiseaseRegistryMetrics).GetEnrollmentTrend(.tFilters, .tTrendData)
+     M ^yO(3)=tMetrics
+     M ^yO(4)=tTrendData
+    Set tResult.TotalPatients = $G(tMetrics("TotalPatients"), 0)
+    Set tResult.AvgAge = $G(tMetrics("AvgAge"), 0)
+    Set tResult.GenderRatio = $G(tMetrics("GenderRatio"), "N/A")
+    
+    Kill tChartData
+    Do ##class(PCS.Riayati.HSCUSTOM.Util.ChartsDataConverter).ConvertEnrollmentTrendToChart(.tTrendData, 90, .tChartData)
+    Set tResult.chartLabels = $G(tChartData("labels"), "")
+    Set tResult.chartValues = $G(tChartData("values"), "")
+     M ^yO(5)=  tResult 
+    Quit tResult.%ToJSON()
+]]></Implementation>
+</Method>
+
+<Method name="GetPatientList">
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&pFilters,pLastRef:%String="",pLimit:%String=""]]></FormalSpec>
+<ReturnType>%SQL.StatementResult</ReturnType>
+<Implementation><![CDATA[
+    Set tProgramId = $G(pFilters("ProgramId"))
+    Set tMPIID = $G(pFilters("MPIID"))
+    Set tMRN = $G(pFilters("MRN"))
+    Set tAssigningAuthority = $G(pFilters("AssigningAuthority"))
+    Set tFromTime = $G(pFilters("FromTime"))
+    
+    If (tFromTime=""){
+    	Set tWhere = "WHERE (pp.ToTime IS NULL OR pp.ToTime >= CURRENT_TIMESTAMP)"
+    }
+    Set tParams = 0
+    
+    If tProgramId '= "" {
+        Set tWhere = tWhere _ " AND pp.Program = ?"
+        Set tParams = tParams + 1
+        Set tParamValues(tParams) = tProgramId
+    }
+    
+    If tMPIID '= "" {
+        Set tWhere = tWhere _ " AND pp.Patient->MPIID = ?"
+        Set tParams = tParams + 1
+        Set tParamValues(tParams) = tMPIID
+    }
+    
+    If (tMRN '= "") || (tAssigningAuthority '= "") {
+        Set tWhere = tWhere _ " AND EXISTS (SELECT 1 FROM HSAA.PatientNumber pnf WHERE pnf.Patient = pp.Patient AND pnf.NumberType = 'MRN'"
+        
+        If tMRN '= "" {
+            Set tWhere = tWhere _ " AND pnf.Number = ?"
+            Set tParams = tParams + 1
+            Set tParamValues(tParams) = tMRN
+        }
+        
+        If tAssigningAuthority '= "" {
+            Set tWhere = tWhere _ " AND pnf.ISOAssigningAuthority = ?"
+            Set tParams = tParams + 1
+            Set tParamValues(tParams) = tAssigningAuthority
+        }
+        
+        Set tWhere = tWhere _ ")"
+    }
+    
+    If tFromTime '= "" {
+        Set tWhere = tWhere _ " AND pp.FromTime = ?"
+        Set tParams = tParams + 1
+        Set tParamValues(tParams) = tFromTime
+    }
+    
+    If pLastRef '= "" {
+        Set tWhere = tWhere _ " AND pp.id < '"_pLastRef_"'"
+    }
+   
+    Set tSql = "SELECT top("_pLimit_") "_
+    			"pp.id as RowId, "_
+               "pp.Patient As PatientId, "_
+               "pp.Patient->MPIID As MPIID, "_
+               "pp.Patient->HSAAID As HSAAID, "_
+               "pp.Patient->Name_FamilyName || ' ' || pp.Patient->Name_GivenName As PatientName, "_
+               "pp.Patient->BirthDate As DOB, "_
+               "pp.Patient->gender_code As Gender, "_
+               "pp.FromTime As FromTime, "_
+               "LIST(pn.Number || '^' || pn.ISOAssigningAuthority) As MRNAAList "_
+               "FROM HSAA.PatientProgram pp "_
+               "LEFT JOIN HSAA.PatientNumber pn ON pn.Patient = pp.Patient AND pn.NumberType = 'MRN' "_
+               tWhere _ " "_
+    			"GROUP BY pp.id, pp.Patient, pp.FromTime, pp.Program "_
+    			"ORDER BY pp.id DESC"
+    
+    Set tStmt = ##class(%SQL.Statement).%New()
+    Do tStmt.%Prepare(tSql)
+    Set tds=$ZDT($H)
+    Set ^ZSQLPat($UserName,tds)=tSql
+    M ^ZSQLPat($UserName,tds)=tParamValues
+    If tParams = 0 {
+        Quit tStmt.%Execute()
+    } ElseIf tParams = 1 {
+        Quit tStmt.%Execute(tParamValues(1))
+    } ElseIf tParams = 2 {
+        Quit tStmt.%Execute(tParamValues(1), tParamValues(2))
+    } ElseIf tParams = 3 {
+        Quit tStmt.%Execute(tParamValues(1), tParamValues(2), tParamValues(3))
+    } ElseIf tParams = 4 {
+        Quit tStmt.%Execute(tParamValues(1), tParamValues(2), tParamValues(3), tParamValues(4))
+    } ElseIf tParams = 5 {
+        Quit tStmt.%Execute(tParamValues(1), tParamValues(2), tParamValues(3), tParamValues(4), tParamValues(5))
+    } Else {
+        Quit tStmt.%Execute(tParamValues(1), tParamValues(2), tParamValues(3), tParamValues(4), tParamValues(5), tParamValues(6))
+    }
+]]></Implementation>
+</Method>
+
+<Method name="FormatMRNList">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>pList:%String,pUniqueId:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+    Set tLimit = 3
+    Set tCount = 0
+    Set tVisibleHTML = ""
+    Set tHiddenHTML = ""
+    
+    For i=1:1:$Length(pList, ",") {
+        Set tItem = $Piece(pList, ",", i)
+        Continue:tItem=""
+        
+        Set tCount = tCount + 1
+        Set tMrn = $Piece(tItem, "^", 1)
+        Set tAa  = $Piece(tItem, "^", 2)
+        Set tBadge = "<div class='mrn-badge'><span class='mrn-val'>"_tMrn_"</span> <span class='aa-val'>["_tAa_"]</span></div>"
+        
+        If (tCount <= tLimit) {
+            Set tVisibleHTML = tVisibleHTML _ tBadge
+        } Else {
+            Set tHiddenHTML = tHiddenHTML _ tBadge
+        }
+    }
+    
+    Set tResult = tVisibleHTML
+    If (tHiddenHTML '= "") {
+        Set tDivId = "mrn_hidden_" _ pUniqueId
+        Set tExtra = tCount - tLimit
+        Set tResult = tResult _ "<div id='"_tDivId_"' class='hidden'>" _ tHiddenHTML _ "</div>"
+        Set tResult = tResult _ "<span class='mrn-toggle' onclick=""toggleMrn('"_tDivId_"', this)"">+ "_tExtra_" more</span>"
+    }
+    Quit tResult
+]]></Implementation>
+</Method>
+
+<Method name="GetNextBatchHTML">
+<Description>
+Get next batch of patient HTML rows (called via Bridge)</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>pLastRowId:%String="",pLimit:%Integer=150,pStartIndex:%Integer=1,pFilterJSON:%String=""</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+    Set tHTML = ""
+    Set tLastRowId = ""
+    
+    Try {
+        // Parse JSON filters
+        Set tFiltersObj = ##class(%DynamicObject).%FromJSON(pFilterJSON)
+        
+        Set tFilters("ProgramId") = tFiltersObj.ProgramId
+        Set tFilters("MPIID") = tFiltersObj.MPIID
+        Set tFilters("FromTime") = tFiltersObj.FromTime
+        Set tFilters("MRN") = tFiltersObj.MRN
+        Set tFilters("AssigningAuthority") = tFiltersObj.AssigningAuthority
+        
+        Set tResultSet = ..GetPatientList(.tFilters, pLastRowId, pLimit)
+        
+        Set tDisplayIndex = pStartIndex
+        
+        While (tResultSet.%Next()) {
+            Set tPatId = tResultSet.%Get("PatientId")
+          	Set tLastRowId=tResultSet.%Get("RowId")
+            Set tRowMpi = tResultSet.%Get("MPIID")
+            Set tHSAAID = tResultSet.%Get("HSAAID")
+            Set tPatientName = $ZCVT(tResultSet.%Get("PatientName"),"O","HTML")
+            Set tDOB = $ZDT($ZCVT(tResultSet.%Get("DOB"),"O","HTML"),5)
+            
+            // Gender badge
+            Set tGenderRaw = $ZCVT(tResultSet.%Get("Gender"),"O","HTML")
+            If (tGenderRaw = "M") {
+                Set tGender = "<span class='gender-badge male'>M</span>"
+            } ElseIf (tGenderRaw = "F") {
+                Set tGender = "<span class='gender-badge female'>F</span>"
+            } Else {
+                Set tGender = "<span class='gender-badge' style='background:#f1f5f9;color:#64748b;border:1px solid #e2e8f0;'>"_tGenderRaw_"</span>"
+            }
+            
+            Set tFromTime = $ZCVT(tResultSet.%Get("FromTime"),"O","HTML")
+            
+            Set tMrnDisplay = ..FormatMRNList(tResultSet.%Get("MRNAAList"), tRowMpi)
+            
+            // Build row
+            Set tHTML = tHTML _ "<tr data-sno='"_tDisplayIndex_"'>"
+            Set tHTML = tHTML _ "<td>"_tDisplayIndex_"</td>"
+            Set tHTML = tHTML _ "<td><strong>"_tPatientName_"</strong></td>"
+            Set tHTML = tHTML _ "<td>"_tDOB_"</td>"
+            Set tHTML = tHTML _ "<td>"_tGender_"</td>"
+            Set tHTML = tHTML _ "<td>"_tRowMpi_"</td>"
+            Set tHTML = tHTML _ "<td><div class='mrn-list'>"_tMrnDisplay_"</div></td>"
+            Set tHTML = tHTML _ "<td><span class='text-muted'>"_tFromTime_"</span></td>"
+            Set tHTML = tHTML _ "<td align='center'><button type='button' class='btn-view' onclick='openViewer("""_tHSAAID_""")'>View</button></td>"
+            Set tHTML = tHTML _ "</tr>"
+            
+            Set tDisplayIndex = tDisplayIndex + 1
+        }
+        
+        // Add hidden field with last DB row ID
+        If (tLastRowId '= "") {
+            Set tHTML = tHTML _ "<input type='hidden' id='lastRowId' value='"_tLastRowId_"'>"
+        }
+        
+        Set ^ZSQLPat=tLastRowId
+    } Catch (ex) {
+        Set tHTML = "<tr><td colspan='8' style='color:red;text-align:center;'>Error: "_$ZCVT(ex.DisplayString(),"O","HTML")_"</td></tr>"
+    }
+    
+    Quit tHTML
+]]></Implementation>
+</Method>
+</Class>
+
+
+<Class name="PCS.UI.Cohorts.Util.DiseaseRegistryMetrics">
+<IncludeCode>UtilityHelper</IncludeCode>
+<Super>%RegisteredObject</Super>
+<TimeChanged>67581,39686.95650743</TimeChanged>
+<TimeCreated>67561,84204.675516285</TimeCreated>
+
+<Method name="GetDashboardMetrics">
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&pFilters:%String="",*pMetrics:%String=""]]></FormalSpec>
+<ReturnType>%Status</ReturnType>
+<Implementation><![CDATA[
+    Kill pMetrics
+    Set tStatus = $System.Status.OK()
+
+    
+    Try {
+        Set tRS = ..ExecuteMetricsQuery(.pFilters)
+        Do ..AggregateMetrics(tRS, .pFilters, .pMetrics)
+        
+    } Catch (Ex) {
+        Set tStatus = Ex.AsStatus()
+    }
+    
+    Quit tStatus
+]]></Implementation>
+</Method>
+
+<Method name="GetEnrollmentTrend">
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&pFilters:%String="",*pTrendData:%String=""]]></FormalSpec>
+<ReturnType>%Status</ReturnType>
+<Implementation><![CDATA[
+    Kill pTrendData
+    Set tStatus = $System.Status.OK()
+    
+    Try {
+        Set tHasFilters = $Get(%session.Data("HasFilter"))
+        //If 'tHasFilters Quit
+        
+        Set tRS = ..ExecuteTrendQuery(.pFilters)
+        
+        While tRS.%Next() {
+            Set tDaysSince = tRS.DaysSinceEnrollment
+            If tDaysSince '= "" {
+                Set pTrendData(tDaysSince) = $G(pTrendData(tDaysSince)) + 1
+            }
+        }
+    } Catch (Ex) {
+        Set tStatus = Ex.AsStatus()
+    }
+    
+    Quit tStatus
+]]></Implementation>
+</Method>
+
+<Method name="ExecuteMetricsQuery">
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&pFilters:%String=""]]></FormalSpec>
+<ReturnType>%SQL.StatementResult</ReturnType>
+<Implementation><![CDATA[
+	Set tParams="",tParamCount=0,tWhere=""
+	If ($Data(pFilters)) {
+    	Set tWhere = ..BuildWhereClause(.pFilters, .tParams, .tParamCount, .pHasFilters)
+	}
+    
+    Set tSql = "SELECT COUNT(DISTINCT pp.Patient) AS TotalPatients,"_
+    			"COALESCE(COUNT(DISTINCT pp.Program),0) AS ActivePrograms,"_
+               "COALESCE(SUM(CASE WHEN pp.Patient->gender_code = 'M' THEN 1 ELSE 0 END),0) AS MalePatients, "_
+    		   "COALESCE(SUM(CASE WHEN pp.Patient->gender_code = 'F' THEN 1 ELSE 0 END),0) AS FemalePatients,"_
+    		   "COALESCE(COUNT(DISTINCT pp.Patient),0) As TotalPatients,"_
+               "COALESCE(AVG(DATEDIFF(year, pp.Patient->BirthDate, CURRENT_DATE)),0) AS AvgAge "_
+               "FROM HSAA.PatientProgram pp " _ tWhere
+               
+    Set ^DRP("SQL")=tSql
+    Set tStmt = ##class(%SQL.Statement).%New()
+    $$$ThrowOnError(tStmt.%Prepare(tSql))
+    
+    Set ^DRP("Params")=tParams
+    Set tRS = ..ExecuteDynamic(tStmt, .tParams, tParamCount)
+    If (tRS.%SQLCODE < 0) {
+        Throw ##class(%Exception.SQL).CreateFromSQLCODE(tRS.%SQLCODE, tRS.%Message)
+    }
+    
+    Quit tRS
+]]></Implementation>
+</Method>
+
+<Method name="ExecuteTrendQuery">
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&pFilters]]></FormalSpec>
+<ReturnType>%SQL.StatementResult</ReturnType>
+<Implementation><![CDATA[
+    Set tWhere = ..BuildWhereClause(.pFilters, .tParams, .tParamCount, .tHasFilters)
+    
+    Set tSql = "SELECT "_
+               "DATEDIFF(day, FromTime, CURRENT_DATE) As DaysSinceEnrollment "_
+               "FROM HSAA.PatientProgram pp " _ tWhere
+    
+    Set tStmt = ##class(%SQL.Statement).%New()
+    $$$ThrowOnError(tStmt.%Prepare(tSql))
+    
+    Set tRS = ..ExecuteDynamic(tStmt, .tParams, tParamCount)
+    If (tRS.%SQLCODE < 0) {
+        Throw ##class(%Exception.SQL).CreateFromSQLCODE(tRS.%SQLCODE, tRS.%Message)
+    }
+    
+    Quit tRS
+]]></Implementation>
+</Method>
+
+<Method name="BuildWhereClause">
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&pFilters:%String="",*pParams:%String="",*pParamCount:%String="",*pHasFilters:%String=""]]></FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+    Set tWhere = "WHERE (pp.ToTime IS NULL OR pp.ToTime >= CURRENT_TIMESTAMP)"
+    Set pParamCount = 0
+    Set pHasFilters = 0
+    
+    If $G(pFilters("ProgramId")) '= "" {
+        Set tWhere = tWhere _ " AND pp.Program = ?"
+        Set pParamCount = pParamCount + 1
+        Set pParams(pParamCount) = pFilters("ProgramId")
+        Set pHasFilters = 1
+    }
+    
+    If $G(pFilters("MPIID")) '= "" {
+        Set tWhere = tWhere _ " AND pp.Patient->MPIID = ?"
+        Set pParamCount = pParamCount + 1
+        Set pParams(pParamCount) = pFilters("MPIID")
+        Set pHasFilters = 1
+    }
+    
+    If ($G(pFilters("MRN")) '= "") || ($G(pFilters("AssigningAuthority")) '= "") {
+        Set tWhere = tWhere _ " AND EXISTS (SELECT 1 FROM HSAA.PatientNumber pn WHERE pn.Patient = pp.Patient AND pn.NumberType = 'MRN'"
+        
+        If $G(pFilters("MRN")) '= "" {
+            Set tWhere = tWhere _ " AND pn.Number = ?"
+            Set pParamCount = pParamCount + 1
+            Set pParams(pParamCount) = pFilters("MRN")
+        }
+        
+        If $G(pFilters("AssigningAuthority")) '= "" {
+            Set tWhere = tWhere _ " AND pn.ISOAssigningAuthority = ?"
+            Set pParamCount = pParamCount + 1
+            Set pParams(pParamCount) = pFilters("AssigningAuthority")
+        }
+        
+        Set tWhere = tWhere _ ")"
+        Set pHasFilters = 1
+    }
+    
+    If $G(pFilters("FromTime")) '= "" {
+        Set tWhere = tWhere _ " AND pp.FromTime >= ?"
+        Set pParamCount = pParamCount + 1
+        Set pParams(pParamCount) = pFilters("FromTime")
+        Set pHasFilters = 1
+    }
+    
+    Quit tWhere
+]]></Implementation>
+</Method>
+
+<Method name="AggregateMetrics">
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[pRS:%SQL.StatementResult,&pFilters:%String="",&pMetrics]]></FormalSpec>
+<Implementation><![CDATA[
+	Set (pMetrics("TotalPatients"),pMetrics("ActivePrograms"),pMetrics("NewThisPeriod"),pMetrics("MalePatientsCnt"),pMetrics("femaleCountCnt"),pMetrics("AvgAge"))=0
+    If pRS.%Next() {
+        Set pMetrics("TotalPatients") = pRS.TotalPatients
+        Set pMetrics("ActivePrograms") = pRS.ActivePrograms
+        Set pMetrics("MalePatientsCnt") = pRS.MalePatients
+        Set pMetrics("femaleCountCnt") = pRS.FemalePatients
+        Set pMetrics("AvgAge") = pRS.AvgAge
+        Set pMetrics("GenderRatio")="NA"
+        If ((pMetrics("MalePatientsCnt")'=0) && (pMetrics("femaleCountCnt")'=0)){
+        	Set pMetrics("GenderRatio")=$FN((pMetrics("MalePatientsCnt")/pMetrics("femaleCountCnt")), ",", 2) _ ":1"
+        }
+        
+    }
+]]></Implementation>
+</Method>
+
+<Method name="HasActiveFilters">
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&pFilters]]></FormalSpec>
+<ReturnType>%Boolean</ReturnType>
+<Implementation><![CDATA[
+    Quit (($G(pFilters("ProgramId")) '= "") || 
+          ($G(pFilters("MPIID")) '= "") || 
+          ($G(pFilters("MRN")) '= "") || 
+          ($G(pFilters("AssigningAuthority")) '= "") || 
+          ($G(pFilters("FromTime")) '= ""))
+]]></Implementation>
+</Method>
+
+<Method name="ExecuteDynamic">
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[pStmt:%SQL.Statement,&pParams,pCount:%Integer]]></FormalSpec>
+<ReturnType>%SQL.StatementResult</ReturnType>
+<Implementation><![CDATA[
+    If pCount = 0 Quit pStmt.%Execute()
+    If pCount = 1 Quit pStmt.%Execute(pParams(1))
+    If pCount = 2 Quit pStmt.%Execute(pParams(1), pParams(2))
+    If pCount = 3 Quit pStmt.%Execute(pParams(1), pParams(2), pParams(3))
+    If pCount = 4 Quit pStmt.%Execute(pParams(1), pParams(2), pParams(3), pParams(4))
+    If pCount = 5 Quit pStmt.%Execute(pParams(1), pParams(2), pParams(3), pParams(4), pParams(5))
+    Quit pStmt.%Execute(pParams(1), pParams(2), pParams(3), pParams(4), pParams(5), pParams(6))
+]]></Implementation>
+</Method>
+</Class>
+</Export>
