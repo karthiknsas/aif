@@ -1,0 +1,1347 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Raw GenAI Dashboard (Single File)</title>
+    <!-- ApexCharts -->
+    <link href="https://cdn.jsdelivr.net/npm/apexcharts/dist/apexcharts.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
+    <!-- FontAwesome -->
+    <link
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css"
+      rel="stylesheet"
+    />
+
+    <style id="GEN_CSS">
+      /* THE AI REWRITES THIS BLOCK FOR THEME CHANGES */
+      :root {
+        --bg: #f4f4f4;
+        --text: #333;
+        --accent: #2196f3;
+      }
+      body {
+        background: var(--bg);
+        color: var(--text);
+        font-family: sans-serif;
+      }
+    </style>
+
+    <style>
+      body {
+        margin: 0;
+        display: flex;
+        flex-direction: column;
+        height: 100vh;
+        overflow: hidden;
+      }
+      .scroll-area {
+        flex: 1;
+        overflow-y: auto;
+        padding: 20px;
+        padding-bottom: 50px;
+      }
+      .container {
+        max-width: 1400px;
+        margin: 0 auto;
+      }
+
+      /* 4 Color Sections */
+      .section {
+        border-radius: 8px;
+        border-left: 5px solid;
+        background: white;
+        padding: 20px;
+        margin-bottom: 20px;
+        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+      }
+      .sec-orange {
+        border-color: #ff9800;
+      }
+      .sec-blue {
+        border-color: #2196f3;
+      }
+      .sec-purple {
+        border-color: #9c27b0;
+      }
+      .sec-green {
+        border-color: #4caf50;
+      }
+
+      /* Collapsible Sections */
+      .section h2 {
+        cursor: pointer;
+        user-select: none;
+        position: relative;
+        padding-left: 25px;
+      }
+      .section h2::before {
+        content: "▼";
+        position: absolute;
+        left: 0;
+        transition: transform 0.3s ease;
+        font-size: 14px;
+      }
+      .section h2.collapsed::before {
+        transform: rotate(-90deg);
+      }
+      .section-content {
+        max-height: 5000px;
+        overflow: hidden;
+        transition: max-height 0.3s ease, opacity 0.3s ease;
+        opacity: 1;
+      }
+      .section-content.collapsed {
+        max-height: 0;
+        opacity: 0;
+      }
+
+      textarea {
+        width: 100%;
+        height: 100px;
+        font-family: monospace;
+        border: 1px solid #ddd;
+      }
+
+      /* Floating Chat Icon */
+      .chat-icon-btn {
+        position: fixed;
+        bottom: 20px;
+        right: 20px;
+        width: 60px;
+        height: 60px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, #2196f3, #1976d2);
+        color: white;
+        border: none;
+        cursor: pointer;
+        box-shadow: 0 4px 15px rgba(33, 150, 243, 0.4);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 24px;
+        z-index: 1000;
+        transition: transform 0.2s, box-shadow 0.2s;
+      }
+      .chat-icon-btn:hover {
+        transform: scale(1.1);
+        box-shadow: 0 6px 20px rgba(33, 150, 243, 0.6);
+      }
+      .chat-icon-btn.hidden {
+        display: none;
+      }
+
+      /* Floating Chat Box */
+      .chat-box {
+        position: fixed;
+        bottom: 20px;
+        right: 20px;
+        width: 400px;
+        height: 500px;
+        background: white;
+        border-radius: 12px;
+        box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+        display: none;
+        flex-direction: column;
+        z-index: 1001;
+        overflow: hidden;
+      }
+      .chat-box.open {
+        display: flex;
+      }
+
+      .chat-box-header {
+        background: linear-gradient(135deg, #2196f3, #1976d2);
+        color: white;
+        padding: 15px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        border-radius: 12px 12px 0 0;
+      }
+      .chat-box-header h3 {
+        margin: 0;
+        font-size: 16px;
+        font-weight: 600;
+      }
+      .chat-box-header-btns {
+        display: flex;
+        gap: 8px;
+      }
+      .chat-box-header button {
+        background: rgba(255, 255, 255, 0.2);
+        border: none;
+        color: white;
+        padding: 6px 12px;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 12px;
+        transition: background 0.2s;
+      }
+      .chat-box-header button:hover {
+        background: rgba(255, 255, 255, 0.3);
+      }
+
+      .chat-box-history {
+        flex: 1;
+        overflow-y: auto;
+        padding: 15px;
+        background: #f9f9f9;
+      }
+
+      .chat-box-input-area {
+        padding: 12px;
+        background: white;
+        border-top: 1px solid #ddd;
+        display: flex;
+        gap: 8px;
+      }
+      .chat-box-input-area input {
+        flex: 1;
+        padding: 10px 15px;
+        border-radius: 20px;
+        border: 1px solid #ccc;
+        font-size: 14px;
+        outline: none;
+      }
+      .chat-box-input-area button {
+        background: #2196f3;
+        color: white;
+        border: none;
+        padding: 10px 20px;
+        border-radius: 20px;
+        cursor: pointer;
+        font-size: 14px;
+        transition: background 0.2s;
+      }
+      .chat-box-input-area button:hover {
+        background: #1976d2;
+      }
+
+      input.chat {
+        flex: 1;
+        padding: 12px;
+        border-radius: 25px;
+        border: 1px solid #ccc;
+        font-size: 14px;
+        outline: none;
+      }
+
+      /* History */
+      .msg {
+        padding: 8px;
+        margin-bottom: 8px;
+        border-radius: 4px;
+        font-size: 13px;
+        line-height: 1.4;
+      }
+      .msg strong {
+        display: block;
+        margin-bottom: 3px;
+        font-size: 11px;
+        opacity: 0.7;
+      }
+      .msg.user {
+        background: #e3f2fd;
+        border-left: 3px solid #2196f3;
+      }
+      .msg.ai {
+        background: #f1f8e9;
+        border-left: 3px solid #4caf50;
+      }
+      .msg.ai-code {
+        font-family: monospace;
+        background: #222;
+        color: #0f0;
+        white-space: pre-wrap;
+        font-size: 11px;
+        border-left: 3px solid #ff9800;
+      }
+      .msg.system {
+        background: #fff3e0;
+        border-left: 3px solid #ff9800;
+        font-style: italic;
+      }
+
+      /* Progress Indicator */
+      .progress-indicator {
+        background: #fff3e0;
+        border-left: 3px solid #ff9800;
+        padding: 12px;
+        margin-bottom: 8px;
+        border-radius: 4px;
+        display: none;
+      }
+      .progress-indicator.active {
+        display: block;
+      }
+      .progress-bar-container {
+        width: 100%;
+        height: 4px;
+        background: #ddd;
+        border-radius: 2px;
+        overflow: hidden;
+        margin-top: 8px;
+      }
+      .progress-bar-fill {
+        height: 100%;
+        background: linear-gradient(90deg, #2196f3, #4caf50);
+        width: 0%;
+        animation: progress 2s ease-in-out infinite;
+      }
+      @keyframes progress {
+        0% {
+          width: 0%;
+        }
+        50% {
+          width: 80%;
+        }
+        100% {
+          width: 100%;
+        }
+      }
+
+      /* Typing indicator */
+      .typing-dots {
+        display: inline-block;
+      }
+      .typing-dots span {
+        animation: blink 1.4s infinite;
+        opacity: 0;
+        display: inline-block;
+      }
+      .typing-dots span:nth-child(1) {
+        animation-delay: 0s;
+      }
+      .typing-dots span:nth-child(2) {
+        animation-delay: 0.2s;
+      }
+      .typing-dots span:nth-child(3) {
+        animation-delay: 0.4s;
+      }
+      @keyframes blink {
+        0%,
+        60%,
+        100% {
+          opacity: 0;
+        }
+        30% {
+          opacity: 1;
+        }
+      }
+
+      .hidden {
+        display: none;
+      }
+
+      button {
+        padding: 10px 20px;
+        cursor: pointer;
+        border: 1px solid #ccc;
+        background: white;
+        border-radius: 4px;
+      }
+
+      /* Table Styles */
+      .data-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 13px;
+      }
+      .data-table th {
+        background: #f5f5f5;
+        padding: 10px;
+        text-align: left;
+        border-bottom: 2px solid #ddd;
+        font-weight: 600;
+        position: sticky;
+        top: 0;
+      }
+      .data-table td {
+        padding: 8px;
+        border-bottom: 1px solid #eee;
+      }
+      .data-table tr:hover {
+        background: #f9f9f9;
+      }
+      .pagination {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        gap: 10px;
+        margin-top: 15px;
+      }
+      .pagination button {
+        padding: 5px 12px;
+        font-size: 12px;
+      }
+      .pagination button:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+      .page-info {
+        font-size: 13px;
+        color: #666;
+      }
+
+      /* Playground Messages */
+      .playground-msg {
+        padding: 10px;
+        margin-bottom: 10px;
+        border-radius: 6px;
+        font-size: 14px;
+        line-height: 1.5;
+      }
+      .playground-msg strong {
+        display: block;
+        margin-bottom: 5px;
+        font-size: 12px;
+        opacity: 0.8;
+      }
+      .playground-msg.user {
+        background: #e1f5fe;
+        border-left: 4px solid #0288d1;
+      }
+      .playground-msg.ai {
+        background: #f1f8e9;
+        border-left: 4px solid #689f38;
+      }
+      .playground-msg.system {
+        background: #fff3e0;
+        border-left: 4px solid #ff9800;
+        font-style: italic;
+      }
+      .playground-msg.error {
+        background: #ffebee;
+        border-left: 4px solid #f44336;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="scroll-area">
+      <div class="container">
+        <!-- 1. CONFIG (Orange) -->
+        <div id="ZONE_CONFIG" class="section sec-orange">
+          <h2 class="collapsed" onclick="toggleSection(this)">1. AI Backend</h2>
+          <div class="section-content collapsed">
+            <div style="display: flex; gap: 10px; align-items: center">
+              <select id="PROVIDER" onchange="toggleProv()">
+                <option value="webllm">WebLLM (Local)</option>
+                <option value="local">Ollama/Server (Input URL)</option>
+              </select>
+              <div id="wrap-webllm">
+                <select id="webllm_model">
+                  <option value="Qwen2.5-Coder-7B-Instruct-q4f16_1-MLC">Qwen 2.5 Coder 7B</option>
+                  <option value="Qwen2.5-Coder-3B-Instruct-q4f16_1-MLC">Qwen 2.5 Coder 3B</option>
+                </select>
+              </div>
+              <div id="wrap-key" class="hidden">
+                <input type="password" id="api_key" placeholder="Key" />
+              </div>
+              <div id="wrap-local" class="hidden">
+                <input
+                  type="text"
+                  id="api_url"
+                  value="http://localhost:11434/v1/chat/completions"
+                />
+              </div>
+              <button onclick="initAI()">Connect</button>
+              <button onclick="testAI()" style="background: #4caf50; color: white">
+                Test AI (Say Hi)
+              </button>
+              <button onclick="checkCache()" style="background: #ff9800; color: white">
+                Check Cache
+              </button>
+              <span id="ai_status" style="font-size: 12px">Offline</span>
+            </div>
+            <div
+              id="test_output"
+              style="
+                margin-top: 10px;
+                padding: 10px;
+                background: #f0f0f0;
+                border-left: 3px solid #4caf50;
+                font-family: monospace;
+                font-size: 12px;
+                max-height: 200px;
+                overflow-y: auto;
+                display: none;
+              "
+            ></div>
+          </div>
+        </div>
+
+        <!-- 2. DATA (Blue) -->
+        <div id="ZONE_DATA" class="section sec-blue">
+          <h2 class="collapsed" onclick="toggleSection(this)">2. Data & Schema</h2>
+          <div class="section-content collapsed">
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px">
+              <!-- LEFT: SCHEMA -->
+              <div>
+                <strong>Schema File (.sql, .txt)</strong>
+                <input
+                  type="file"
+                  id="schema_file"
+                  accept=".sql,.txt"
+                  style="display: block; margin: 10px 0"
+                />
+                <textarea
+                  id="schema_description"
+                  placeholder="Describe what this schema represents (min 10 chars)"
+                  style="height: 60px"
+                ></textarea>
+                <textarea id="schema_box" placeholder="Schema Context..." readonly></textarea>
+                <button onclick="loadSchema()">Load Schema</button>
+              </div>
+              <!-- RIGHT: CSV DATA -->
+              <div>
+                <strong>CSV Data File</strong>
+                <input
+                  type="file"
+                  id="csv_file"
+                  accept=".csv"
+                  style="display: block; margin: 10px 0"
+                />
+                <textarea
+                  id="csv_description"
+                  placeholder="Describe this dataset (min 10 chars)"
+                  style="height: 60px"
+                ></textarea>
+                <textarea id="data_buffer" readonly placeholder="Parsed data preview..."></textarea>
+                <button onclick="parseCSV()">Load CSV</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 3. TABLE VIEW -->
+        <div id="ZONE_TABLE" class="section sec-green">
+          <h2 class="collapsed" onclick="toggleSection(this)">3. Table View</h2>
+          <div class="section-content collapsed">
+            <div
+              id="data_table_view"
+              style="
+                overflow-x: auto;
+                max-height: 400px;
+                border: 1px solid #ddd;
+                background: white;
+                border-radius: 6px;
+                padding: 10px;
+              "
+            >
+              <!-- Auto-populated after CSV upload -->
+            </div>
+          </div>
+        </div>
+
+        <!-- 4. ANALYTICS (Purple) -->
+        <div id="ZONE_VIZ" class="section sec-purple">
+          <h2 class="collapsed" onclick="toggleSection(this)">4. Generative Analytics</h2>
+          <div class="section-content collapsed">
+            <div
+              id="AI_SUMMARY"
+              style="
+                background: #fff;
+                padding: 10px;
+                border: 1px solid #ddd;
+                margin-bottom: 10px;
+                min-height: 30px;
+              "
+            >
+              Waiting for analysis...
+            </div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px">
+              <div style="height: 350px; background: white; padding: 10px; border: 1px solid #eee">
+                <canvas id="canvas_1"></canvas>
+              </div>
+              <div style="height: 350px; background: white; padding: 10px; border: 1px solid #eee">
+                <canvas id="canvas_2"></canvas>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 5. REPORT (Green) -->
+        <div id="ZONE_REPORT" class="section sec-green">
+          <h2 class="collapsed" onclick="toggleSection(this)">5. Generative Report</h2>
+          <div class="section-content collapsed">
+            <div id="report_placeholder">...</div>
+          </div>
+        </div>
+
+        <!-- 6. CHAT HISTORY (Red) -->
+        <div id="ZONE_HISTORY" class="section" style="border-color: #e91e63">
+          <h2 class="collapsed" onclick="toggleSection(this)">
+            6. Chat History
+            <label style="float: right; font-size: 14px; font-weight: normal">
+              <input type="checkbox" id="enable_logging" checked onchange="toggleLogging()" />
+              Enable Logging
+            </label>
+          </h2>
+          <div class="section-content collapsed">
+            <div
+              id="chat_history_display"
+              style="
+                background: #f9f9f9;
+                padding: 10px;
+                border-radius: 4px;
+                max-height: 400px;
+                overflow-y: auto;
+                font-family: monospace;
+                font-size: 12px;
+                line-height: 1.6;
+              "
+            >
+              <div class="log-entry">System ready</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 7. PLAYGROUND (Cyan) -->
+        <div id="ZONE_PLAYGROUND" class="section" style="border-color: #00bcd4">
+          <h2 class="collapsed" onclick="toggleSection(this)">
+            7. Playground - Practice Chat
+            <button
+              onclick="clearPlayground()"
+              style="
+                float: right;
+                background: #f44336;
+                color: white;
+                padding: 5px 15px;
+                border: none;
+                border-radius: 4px;
+                cursor: pointer;
+                font-size: 12px;
+              "
+            >
+              Clear Playground
+            </button>
+          </h2>
+          <div class="section-content collapsed">
+            <!-- File Upload Area -->
+            <div
+              style="
+                background: #f0f8ff;
+                padding: 15px;
+                border-radius: 6px;
+                margin-bottom: 15px;
+                border: 2px dashed #00bcd4;
+              "
+            >
+              <strong style="color: #00838f">📎 Upload Files for Practice:</strong>
+              <input
+                type="file"
+                id="playground_file"
+                multiple
+                accept=".txt,.csv,.json,.sql"
+                style="display: block; margin: 10px 0"
+              />
+              <div
+                id="playground_files_list"
+                style="margin-top: 10px; font-size: 12px; color: #555"
+              ></div>
+            </div>
+
+            <!-- Chat History Display -->
+            <div
+              id="playground_chat_history"
+              style="
+                background: #fff;
+                padding: 15px;
+                border-radius: 6px;
+                max-height: 400px;
+                overflow-y: auto;
+                border: 1px solid #ddd;
+                margin-bottom: 15px;
+                min-height: 200px;
+              "
+            >
+              <div class="playground-msg system">
+                <strong>System:</strong> Playground ready! Upload files and start chatting with the
+                AI for practice.
+              </div>
+            </div>
+
+            <!-- Chat Input -->
+            <div style="display: flex; gap: 10px; align-items: center">
+              <input
+                type="text"
+                id="playground_input"
+                placeholder="Type your message..."
+                style="
+                  flex: 1;
+                  padding: 12px;
+                  border-radius: 25px;
+                  border: 1px solid #00bcd4;
+                  font-size: 14px;
+                  outline: none;
+                "
+                onkeydown="if(event.key==='Enter'){event.preventDefault(); sendPlaygroundMessage();}"
+              />
+              <button
+                onclick="sendPlaygroundMessage()"
+                style="
+                  padding: 12px 24px;
+                  background: #00bcd4;
+                  color: white;
+                  border: none;
+                  border-radius: 25px;
+                  cursor: pointer;
+                  font-weight: bold;
+                "
+              >
+                <i class="fas fa-paper-plane"></i> Send
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- FLOATING CHAT ICON -->
+    <button class="chat-icon-btn" onclick="toggleChatBox()">
+      <i class="fas fa-comments"></i>
+    </button>
+
+    <!-- FLOATING CHAT BOX -->
+    <div id="chat_box" class="chat-box">
+      <div class="chat-box-header">
+        <h3><i class="fas fa-comments"></i> Chat</h3>
+        <div class="chat-box-header-btns">
+          <button onclick="clearChatHistory()"><i class="fas fa-trash"></i> Clear</button>
+          <button onclick="toggleChatBox()"><i class="fas fa-times"></i></button>
+        </div>
+      </div>
+      <div id="history_box" class="chat-box-history"></div>
+      <div class="chat-box-input-area">
+        <input
+          type="text"
+          id="user_input"
+          placeholder="Type message or command..."
+          onkeydown="if(event.key==='Enter'){event.preventDefault(); GEN_EXECUTE();}"
+        />
+        <button onclick="GEN_EXECUTE()"><i class="fas fa-paper-plane"></i></button>
+      </div>
+    </div>
+
+    <script type="module">
+      import * as webllm from "https://esm.run/@mlc-ai/web-llm";
+
+      // --- GLOBAL CONTEXT ---
+      window.APP = {
+        data: [],
+        cols: [],
+        schema: "",
+        engine: null,
+        prov: "webllm",
+        charts: { c1: null, c2: null },
+        currentPage: 1,
+        rowsPerPage: 20,
+        schemaDescription: "",
+        fileName: "",
+        description: ""
+      };
+
+      // --- WORKER BLOB CREATION ---
+      // We create a Blob for the worker to keep everything in a single file
+      // The worker code imports WebWorkerMLCEngineHandler and sets up the message listener.
+      const workerScript = `
+        console.log("Worker: Script starting...");
+        import { WebWorkerMLCEngineHandler } from "https://esm.run/@mlc-ai/web-llm";
+
+        try {
+            const handler = new WebWorkerMLCEngineHandler();
+            console.log("Worker: Handler initialized");
+            self.onmessage = (msg) => {
+                handler.onmessage(msg);
+            };
+        } catch (e) {
+            console.error("Worker Init Error:", e);
+        }
+      `;
+      const blob = new Blob([workerScript], { type: 'application/javascript' });
+      const workerUrl = URL.createObjectURL(blob);
+
+      // --- TOGGLE SECTION COLLAPSE/EXPAND ---
+      window.toggleSection = function(h2Element) {
+        h2Element.classList.toggle("collapsed");
+        const content = h2Element.nextElementSibling;
+        content.classList.toggle("collapsed");
+      }
+
+      // --- CENTRAL AI CALL FUNCTION ---
+      window.callAI = async function(messages, options = {}) {
+        // If we are using WebLLM, APP.engine is the WebWorkerMLCEngine
+        return await APP.engine.chat.completions.create({
+          messages: messages,
+          ...options,
+        });
+      }
+
+      // --- TOGGLE CHAT BOX ---
+      window.toggleChatBox = function() {
+        const chatBox = document.getElementById("chat_box");
+        const chatIcon = document.querySelector(".chat-icon-btn");
+
+        if (chatBox.classList.contains("open")) {
+          chatBox.classList.remove("open");
+          chatIcon.classList.remove("hidden");
+        } else {
+          chatBox.classList.add("open");
+          chatIcon.classList.add("hidden");
+        }
+      }
+
+      // --- TIMESTAMP LOGGER ---
+      window.addLog = function(msg, type = "info") {
+        const lines = msg.split("\n");
+        const timestamp = new Date().toLocaleTimeString("en-US", {
+          hour12: false,
+          hour: "2-digit",
+          minute: "2-digit",
+          second: "2-digit",
+        });
+        const prefix = `[${timestamp}]`;
+        const color =
+          {
+            info: "blue",
+            success: "green",
+            error: "red",
+            warn: "orange",
+          }[type] || "blue";
+
+        lines.forEach((line) => {
+          if (!line) return;
+          console.log(
+            `%c${prefix} [${type.toUpperCase()}] ${line}`,
+            `color: ${color}; font-weight: bold`
+          );
+
+          if (document.getElementById("enable_logging")?.checked) {
+            const display = document.getElementById("chat_history_display");
+            const entry = document.createElement("div");
+            entry.className = "log-entry";
+            entry.style.color = color;
+            entry.textContent = `${prefix} [${type.toUpperCase()}] ${line}`;
+            display.appendChild(entry);
+            display.scrollTop = display.scrollHeight;
+          }
+        });
+      }
+
+      window.toggleLogging = function() {
+        const enabled = document.getElementById("enable_logging").checked;
+        addLog("Logging " + (enabled ? "enabled" : "disabled"), "info");
+      }
+
+      window.clearChatHistory = function() {
+        document.getElementById("history_box").innerHTML = "";
+        document.getElementById("chat_history_display").innerHTML =
+          '<div class="log-entry">History cleared</div>';
+        addLog("Chat history cleared", "warn");
+      }
+
+      window.addMsg = function(role, text) {
+        const div = document.createElement("div");
+        div.className = `msg ${role}`;
+        div.innerHTML = text;
+        document.getElementById("history_box").appendChild(div);
+        document.getElementById("history_box").scrollTop = 999999;
+      }
+
+      window.setChatState = function(state) {
+        const input = document.getElementById("user_input");
+        const btn = document.querySelector(".chat-box-input-area button");
+
+        if (state === "disabled") {
+          input.disabled = true;
+          input.placeholder = "Processing request...";
+          btn.style.pointerEvents = "none";
+          btn.style.opacity = "0.5";
+        } else if (state === "ready") {
+          input.disabled = false;
+          input.placeholder = "Type message or command...";
+          btn.style.pointerEvents = "auto";
+          btn.style.opacity = "1";
+        }
+      }
+
+      // --- SCHEMA LOADER ---
+      window.loadSchema = function() {
+        const fileInput = document.getElementById("schema_file");
+        const desc = document.getElementById("schema_description").value.trim();
+        if (!fileInput.files.length) return alert("Select schema file first.");
+        if (desc.length < 10)
+          return alert("Please enter a meaningful schema description (min 10 chars).");
+
+        if (fileInput.files.length > 1) {
+          alert("Upload only one schema file at a time.");
+          fileInput.value = "";
+          return;
+        }
+
+        const file = fileInput.files[0];
+        APP.schemaDescription = desc;
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          APP.schema = e.target.result;
+          document.getElementById("schema_box").value = APP.schema;
+          alert("Schema loaded successfully.");
+        };
+        reader.readAsText(file);
+      }
+
+      // --- CSV LOADER ---
+      window.parseCSV = function() {
+        const fileInput = document.getElementById("csv_file");
+        const desc = document.getElementById("csv_description").value.trim();
+        if (!fileInput.files.length) return alert("Select CSV file first.");
+        if (desc.length < 10)
+          return alert("Please enter a meaningful CSV description (min 10 chars).");
+
+        if (fileInput.files.length > 1) {
+          alert("Upload only one CSV file at a time.");
+          fileInput.value = "";
+          return;
+        }
+
+        const file = fileInput.files[0];
+        APP.fileName = file.name;
+        APP.description = desc;
+
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          const lines = e.target.result.trim().split("\n");
+          APP.cols = lines[0].split(",").map((h) => h.trim());
+          APP.data = lines.slice(1).map((l) => {
+            const v = l.split(",");
+            return APP.cols.reduce(
+              (o, c, i) => ({ ...o, [c]: isNaN(v[i]) ? v[i] : Number(v[i]) }),
+              {}
+            );
+          });
+          document.getElementById("data_buffer").value = JSON.stringify(
+            APP.data.slice(0, 5),
+            null,
+            2
+          );
+          addLog("CSV loaded: " + APP.data.length + " rows", "success");
+          alert(`Loaded ${APP.data.length} rows. Columns: ${APP.cols.join(", ")}`);
+          renderTable();
+        };
+        reader.onerror = (e) => addLog("CSV load failed", "error");
+        reader.readAsText(file);
+      }
+
+      window.renderTable = function(page = 1) {
+        if (!APP.data.length || !APP.cols.length) {
+          document.getElementById("data_table_view").innerHTML =
+            '<p style="color:#999; text-align:center; padding:20px;">No data loaded yet</p>';
+          return;
+        }
+
+        APP.currentPage = page;
+        const start = (page - 1) * APP.rowsPerPage;
+        const end = start + APP.rowsPerPage;
+        const pageData = APP.data.slice(start, end);
+        const totalPages = Math.ceil(APP.data.length / APP.rowsPerPage);
+
+        let html = '<table class="data-table"><thead><tr>';
+        APP.cols.forEach((col) => {
+          html += `<th>${col}</th>`;
+        });
+        html += "</tr></thead><tbody>";
+
+        pageData.forEach((row) => {
+          html += "<tr>";
+          APP.cols.forEach((col) => {
+            html += `<td>${row[col] !== undefined ? row[col] : ""}</td>`;
+          });
+          html += "</tr>";
+        });
+
+        html += "</tbody></table>";
+        html += '<div class="pagination">';
+        html += `<button onclick="renderTable(${page - 1})" ${
+          page === 1 ? "disabled" : ""
+        }>← Previous</button>`;
+        html += `<span class="page-info">Page ${page} of ${totalPages} (${APP.data.length} total rows)</span>`;
+        html += `<button onclick="renderTable(${page + 1})" ${
+          page === totalPages ? "disabled" : ""
+        }>Next →</button>`;
+        html += "</div>";
+
+        document.getElementById("data_table_view").innerHTML = html;
+      }
+
+      // --- 2. AI CONNECT ---
+      window.toggleProv = function() {
+        const p = document.getElementById("PROVIDER").value;
+        APP.prov = p;
+        document.getElementById("wrap-webllm").classList.toggle("hidden", p !== "webllm");
+        document.getElementById("wrap-key").classList.toggle("hidden", p === "webllm");
+        document.getElementById("wrap-local").classList.toggle("hidden", p !== "local");
+      }
+
+      window.initAI = async function() {
+        const status = document.getElementById("ai_status");
+        status.innerText = "Connecting...";
+        addLog("AI initialization started", "info");
+        try {
+          if (APP.prov === "webllm") {
+             // Create WebWorkerMLCEngine using our blob worker
+             const worker = new Worker(workerUrl, { type: "module" });
+             worker.onerror = (e) => {
+                console.error("Worker Error Event:", e);
+                addLog("Worker Startup Error. Check Console.", "error");
+             };
+
+             APP.engine = await webllm.CreateWebWorkerMLCEngine(
+               worker,
+               document.getElementById("webllm_model").value,
+               {
+                 initProgressCallback: (p) => {
+                   const percent = Math.round(p.progress * 100);
+                   status.innerText = `${percent}%`;
+                 },
+               }
+             );
+          }
+          status.innerText = "Online";
+          status.style.color = "green";
+          addLog("AI connected successfully", "success");
+        } catch (e) {
+          status.innerText = "Error";
+          addLog("AI connection failed: " + e.message, "error");
+          alert("Error: " + e.message);
+        }
+      }
+
+      // --- TEST AI ---
+      window.testAI = async function() {
+        const output = document.getElementById("test_output");
+        output.style.display = "block";
+        function log(msg, type = "info") {
+          const timestamp = new Date().toLocaleTimeString("en-US", {
+            hour12: false,
+            hour: "2-digit",
+            minute: "2-digit",
+            second: "2-digit",
+          });
+          const color = type === "error" ? "red" : type === "success" ? "green" : "blue";
+          output.innerHTML += `<div style="color:${color}">[${timestamp}] ${msg}</div>`;
+          output.scrollTop = output.scrollHeight;
+          addLog(msg, type);
+        }
+
+        if (!APP.engine) {
+          log("AI not connected", "error");
+          alert('Please click "Connect" button first!');
+          return;
+        }
+
+        try {
+          log('Test: Sending "hi" to AI', "info");
+          // Use stateless message structure
+          const messages = [{ role: "user", content: "hi" }];
+          const response = await callAI(messages, {
+            temperature: 0.1,
+            max_tokens: 100,
+          });
+          const aiReply = response.choices[0].message.content;
+          log("AI Reply: " + aiReply, "success");
+          alert("✓ Test Success!\n\nYou: hi\nAI: " + aiReply);
+        } catch (e) {
+          log("Test failed: " + e.message, "error");
+          alert("Test failed: " + e.message);
+        }
+      }
+
+      // --- CACHE CHECK ---
+      window.checkCache = async function() {
+        const output = document.getElementById("test_output");
+        output.style.display = "block";
+        output.innerHTML =
+          '<div style="color:blue;font-weight:bold;">Checking WebLLM Cache...</div>';
+
+        try {
+          const dbs = await indexedDB.databases();
+          const webllmDB = dbs.find((db) => db.name && db.name.includes("webllm"));
+
+          if (!webllmDB) {
+            output.innerHTML +=
+              '<div style="color:orange;">No WebLLM cache found. No models downloaded yet.</div>';
+            alert('No cached models found.\n\nModels will be downloaded when you click "Connect".');
+            return;
+          }
+
+          output.innerHTML += `<div style="color:green;">Found cache: ${webllmDB.name}</div>`;
+
+          const request = indexedDB.open(webllmDB.name);
+          request.onsuccess = (event) => {
+            const db = event.target.result;
+            const stores = Array.from(db.objectStoreNames);
+            output.innerHTML += `<div style="color:blue;">Object Stores: ${stores.join(", ")}</div>`;
+
+            if (stores.length > 0) {
+              const transaction = db.transaction(stores[0], "readonly");
+              const store = transaction.objectStore(stores[0]);
+              const getAllRequest = store.getAllKeys();
+              getAllRequest.onsuccess = () => {
+                const keys = getAllRequest.result;
+                output.innerHTML += `<div style="color:green;">Cached items: ${keys.length}</div>`;
+                if (keys.length > 0) {
+                  output.innerHTML += '<div style="color:blue;">Cached models/files:</div>';
+                  keys.slice(0, 10).forEach((key) => {
+                    output.innerHTML += `<div style="margin-left:20px;font-size:11px;">• ${key}</div>`;
+                  });
+                  if (keys.length > 10) {
+                    output.innerHTML += `<div style="margin-left:20px;color:gray;">... and ${keys.length - 10} more</div>`;
+                  }
+                }
+                alert(`✓ Cache Found!\n\n${keys.length} items cached.`);
+              };
+            }
+            db.close();
+          };
+          request.onerror = () => {
+            output.innerHTML += '<div style="color:red;">Error accessing cache database</div>';
+          };
+        } catch (e) {
+          output.innerHTML += `<div style="color:red;">Error: ${e.message}</div>`;
+          alert("Error checking cache: " + e.message);
+        }
+      }
+
+      // --- PROMPT BUILDER (DUAL MODE) ---
+      function buildSystemPrompt(req) {
+        // Privacy: Only expose columns, not data
+        const dC = APP.data.length ? `COLS: ${JSON.stringify(APP.cols)}` : "No CSV loaded.";
+
+        return `
+SYSTEM: You are a dual-mode assistant.
+1. GENERAL KNOWLEDGE: If the user asks a general question (e.g., "Capital of India"), answer DIRECTLY in plain text.
+2. DATA/UI TASKS: If the user asks for charts, themes, or data analysis (e.g., "Avg sales"), generate JavaScript code using this format:
+
+<<<TARGET>>>
+{target_id}
+<<<DESCRIPTION>>>
+{text}
+<<<JAVASCRIPT>>>
+{code}
+<<<END>>>
+
+CONTEXT:
+${dC}
+
+STRICT RULES FOR CODE GEN:
+- NO MARKDOWN (\`\`\`). Do not use code blocks.
+- DO NOT SHOUT. JavaScript is Case Sensitive.
+- KEYWORDS: Use 'const', 'var', 'new', 'function'. NEVER 'CONST', 'VAR'.
+- TARGETS:
+  * CHARTS -> canvas_1
+  * TEXT/STATS -> AI_SUMMARY
+  * THEME -> GEN_CSS
+- CHARTS: APP.charts.c1?.destroy(); APP.charts.c1 = new ApexCharts(document.querySelector("#canvas_1"), options); APP.charts.c1.render();
+`;
+      }
+
+      // --- CODE SANITIZER ---
+      function sanitizeCode(code) {
+          // Fix common ALL CAPS hallucinations
+          let clean = code
+            .replace(/APP\.DATA/g, "APP.data")
+            .replace(/APP\.COLS/g, "APP.cols")
+            .replace(/APP\.CHARTS/g, "APP.charts")
+            .replace(/DOCUMENT\./g, "document.")
+            .replace(/APEXCHARTS/g, "ApexCharts")
+            .replace(/WINDOW\./g, "window.")
+            .replace(/CONSOLE\.LOG/g, "console.log")
+            // Methods
+            .replace(/\.QUERYSELECTOR/g, ".querySelector")
+            .replace(/\.GETELEMENTBYID/g, ".getElementById")
+            .replace(/\.INNERHTML/g, ".innerHTML")
+            .replace(/\.MAP\(/g, ".map(")
+            .replace(/\.FILTER\(/g, ".filter(")
+            .replace(/\.REDUCE\(/g, ".reduce(")
+            .replace(/\.DESTROY\(/g, ".destroy(")
+            .replace(/\.RENDER\(/g, ".render(")
+            // Keywords
+            .replace(/CONST /g, "const ")
+            .replace(/VAR /g, "var ")
+            .replace(/LET /g, "let ")
+            .replace(/NEW /g, "new ")
+            .replace(/FUNCTION/g, "function")
+            .replace(/RETURN /g, "return ");
+
+          // Remove Markdown backticks if present
+          clean = clean.replace(/```javascript/gi, "").replace(/```/g, "");
+          return clean;
+      }
+
+      // --- EXECUTION FUNCTION ---
+      window.GEN_EXECUTE = async function() {
+        const req = document.getElementById("user_input").value.trim();
+        if (!req) return;
+
+        addLog("🟢 REQUEST: " + req, "info");
+        addMsg("user", req);
+        document.getElementById("user_input").value = "";
+
+        const prompt = buildSystemPrompt(req);
+
+        try {
+          setChatState("disabled");
+          addMsg("system", "Thinking...");
+
+          // STATELESS REQUEST
+          const messages = [
+            { role: "system", content: prompt },
+            { role: "user", content: req }
+          ];
+
+          const res = await callAI(messages, { temperature: 0.3 });
+          let reply = res.choices[0].message.content.trim();
+          addLog("ai-response", reply);
+
+          // --- FALLBACK: If no format found but code detected, wrap it ---
+          // Detects: "APP.DATA", "APP.data", "```javascript"
+          if (!reply.includes("<<<TARGET>>>") && (reply.match(/APP\.(data|DATA)/i) || reply.includes("```"))) {
+             addLog("⚠️ Malformed response detected. Attempting auto-repair...", "warn");
+             reply = `<<<TARGET>>>\nAI_SUMMARY\n<<<DESCRIPTION>>>\nAuto-repaired code\n<<<JAVASCRIPT>>>\n${reply}\n<<<END>>>`;
+          }
+
+          // --- DUAL MODE PARSER ---
+          const regex = /<<<TARGET>>>\s*(\S+)\s*<<<DESCRIPTION>>>\s*([\s\S]*?)\s*<<<JAVASCRIPT>>>\s*([\s\S]*?)\s*<<<END>>>/gi;
+          let match;
+          let foundAny = false;
+
+          while ((match = regex.exec(reply)) !== null) {
+            foundAny = true;
+            const targetId = match[1].trim();
+            const description = match[2].trim();
+            let code = match[3].trim();
+
+            addMsg("ai", `<strong>${targetId}:</strong> ${description}`);
+
+            // Sanitize code before execution
+            code = sanitizeCode(code);
+
+            try {
+              // Execute code
+              const fn = new Function("APP", "document", "ApexCharts", code);
+              fn(APP, document, ApexCharts);
+              addLog("✅ Executed on " + targetId, "success");
+            } catch (err) {
+              addLog("❌ Exec Error (" + targetId + "): " + err.message, "error");
+              addMsg("system", "Execution Error: " + err.message);
+            }
+          }
+
+          if (!foundAny) {
+            // Treat as General Chat Answer
+            addMsg("ai", reply);
+          }
+
+        } catch (e) {
+          addLog("❌ ERROR: " + e.message, "error");
+          addMsg("system", "Error: " + e.message);
+        } finally {
+          setChatState("ready");
+        }
+      }
+
+      // --- PLAYGROUND FUNCTIONS (Stateful) ---
+      window.uploadPlaygroundFile = function() {
+        const fileInput = document.getElementById("playground_file");
+        if (!fileInput.files.length) {
+          addPlaygroundMsg("error", "Please select a file first.");
+          return;
+        }
+
+        const file = fileInput.files[0];
+        const ext = file.name.split(".").pop().toLowerCase();
+
+        if (ext === "csv") {
+          document.getElementById("csv_file").files = fileInput.files;
+          document.getElementById("csv_description").value = "Playground upload: " + file.name;
+          parseCSV();
+          addPlaygroundMsg("system", "CSV loaded using main data loader.");
+        } else if (ext === "sql" || ext === "txt") {
+          document.getElementById("schema_file").files = fileInput.files;
+          document.getElementById("schema_description").value = "Playground upload: " + file.name;
+          loadSchema();
+          addPlaygroundMsg("system", "Schema loaded using main schema loader.");
+        } else {
+          addPlaygroundMsg("error", "Unsupported file type. Use .csv, .sql, or .txt");
+        }
+      }
+
+      window.addPlaygroundMsg = function(type, content) {
+        const chatDiv = document.getElementById("playground_chat_history");
+        const msgDiv = document.createElement("div");
+        msgDiv.className = `playground-msg ${type}`;
+        let label = type.charAt(0).toUpperCase() + type.slice(1);
+        if (type === "user") label = "You";
+        if (type === "ai") label = "AI";
+        msgDiv.innerHTML = `<strong>${label}:</strong> ${content}`;
+        chatDiv.appendChild(msgDiv);
+        chatDiv.scrollTop = chatDiv.scrollHeight;
+      }
+
+      window.sendPlaygroundMessage = async function() {
+        const input = document.getElementById("playground_input");
+        const message = input.value.trim();
+        if (!message) return;
+
+        addPlaygroundMsg("user", message);
+        input.value = "";
+
+        if (!APP.engine) {
+          addPlaygroundMsg("error", "AI not connected. Please connect first in section 1.");
+          return;
+        }
+
+        try {
+          input.disabled = true;
+          input.placeholder = "AI is thinking...";
+
+          // Playground is typically stateful, but for now we are using a simple stateless call
+          // to avoid complexity with the shared engine state.
+          // If true chat history is needed, we would need to maintain a separate 'history' array.
+
+          const messages = [
+             { role: "system", content: "You are a helpful assistant." },
+             { role: "user", content: message }
+          ];
+
+          const response = await callAI(messages, {
+            temperature: 0.7,
+            max_tokens: 1000,
+          });
+
+          const aiReply = response.choices[0].message.content;
+          addPlaygroundMsg("ai", aiReply);
+        } catch (e) {
+          addPlaygroundMsg("error", "Error: " + e.message);
+        } finally {
+          input.disabled = false;
+          input.placeholder = "Type your message...";
+          input.focus();
+        }
+      }
+
+      window.clearPlayground = function() {
+        if (!confirm("Clear playground chat history?")) return;
+        document.getElementById("playground_chat_history").innerHTML = `
+            <div class="playground-msg system">
+                <strong>System:</strong> Playground cleared! Start chatting.
+            </div>
+        `;
+        document.getElementById("playground_input").value = "";
+        document.getElementById("playground_file").value = "";
+        addLog("Playground cleared", "info");
+      }
+    </script>
+  </body>
+</html>
